@@ -33,7 +33,7 @@ final class ProgressUI: NSObject, NSWindowDelegate {
             styleMask: [.titled, .closable, .miniaturizable],
             backing: .buffered, defer: false)
         super.init()
-        window.title = "osxEQL Setup"
+        window.title = "osxEQEmu Setup"
         window.isReleasedWhenClosed = false
         window.center()
         window.delegate = self
@@ -159,7 +159,7 @@ final class ProgressUI: NSObject, NSWindowDelegate {
     func stdinClosed() {
         guard !finished else { return }
         phase.stringValue = "Setup stopped unexpectedly"
-        detail.stringValue = "Log: ~/Library/Application Support/osxEQL/logs/app-launch.log"
+        detail.stringValue = "Log: ~/Library/Application Support/osxEQEmu/logs/setup.log"
         bar.isIndeterminate = false
         bar.doubleValue = 0
         appendLog("The setup process exited before finishing.")
@@ -185,17 +185,14 @@ if snapshotMode {
     // so the snapshots verify the UI users really see.
     let dir = URL(fileURLWithPath: CommandLine.arguments[2], isDirectory: true)
     for cmd in ["PHASE Setting up the Wine environment", "INDET",
-                "LOG Installing Daybreak's launcher",
-                "LOG Launcher updating itself",
-                "PHASE Downloading EverQuest Legends", "DETAIL 3.2 of 6.0 GB",
+                "PHASE Copying your RoF2 client (9.8 GB)", "DETAIL 3.2 of 9.8 GB",
                 "PROGRESS 54"] {
         ui.handle(cmd)
     }
     ui.snapshot(to: dir.appendingPathComponent("progress-mid.png"))
-    ui.handle("READY LaunchPad is ready — log in there")
-    ui.handle("DETAIL You can close this window; it keeps tracking the install if you leave it open.")
+    ui.handle("READY Copying your RoF2 client")
     ui.snapshot(to: dir.appendingPathComponent("progress-ready.png"))
-    ui.handle("DONE EverQuest Legends is installed — press PLAY in LaunchPad")
+    ui.handle("DONE Your client is ready — starting EverQuest")
     ui.snapshot(to: dir.appendingPathComponent("progress-done.png"))
     exit(0)
 }

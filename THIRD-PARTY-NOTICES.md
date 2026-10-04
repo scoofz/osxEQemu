@@ -1,9 +1,9 @@
 # Third-party notices
 
-osxEQL is open source. The distributable bundle contains binaries built from the
+osxEQEmu (built on osxEQL) is open source. The distributable bundle contains binaries built from the
 following open-source projects, plus it runs (but does **not** include) a
-copyrighted game. Each is listed with its license and where to get the
-corresponding source — this is how osxEQL satisfies the LGPL.
+copyrighted game client. Each is listed with its license and where to get the
+corresponding source — this is how the project satisfies the LGPL.
 
 ## Wine (from CrossOver sources) — LGPL-2.1
 
@@ -19,49 +19,49 @@ D3DMetal, no CrossOver GUI, and no CrossOver branding.
 - Build recipe (how to reproduce our binary): `engine/build-wine.sh`.
 - You may obtain, modify, rebuild, and relink the Wine runtime under the LGPL.
 
-## DXMT — LGPL-2.1-or-later
+## DXMT — LGPL-2.1-or-later (only when the app was built on an osxEQL runtime)
 
-The Direct3D 11 → Metal translation layer. Builtin DLLs (`d3d11`, `d3d10core`,
+The Direct3D 11 → Metal translation layer. osxEQEmu doesn't use it (RoF2 is Direct3D 9),
+but an app assembled from an osxEQL-family runtime still contains it. Builtin DLLs (`d3d11`, `d3d10core`,
 `dxgi`, `winemetal`) + `winemetal.so` are shipped from the project's release.
 
 - Copyright (c) 2023-2026 Feifan He for CodeWeavers.
 - License: GNU LGPL v2.1-or-later.
 - Source / releases: https://github.com/3Shain/dxmt
 
-## EverQuest Legends client — NOT included, Daybreak property
+## EverQuest RoF2 client — NOT included, Daybreak property
 
-osxEQL ships **no** game files. The EverQuest / EverQuest Legends client, the
-`EQLegends_setup.exe` installer, the LaunchPad, and all game assets are the
-property of Daybreak Game Company (or its successors). You must obtain them
-yourself, from the official source, with a legitimate account. osxEQL only runs a
-copy you install yourself; it does not redistribute, modify, or circumvent any
-protection on the game.
+osxEQEmu ships **no** game files. The EverQuest client (Rain of Fear 2 or any other
+version) and all game assets are the property of Daybreak Game Company (or its
+successors). You supply your own copy; osxEQEmu only copies it into its own data folder
+(on your request) or runs it where it is. It does not redistribute, modify the program
+of, or circumvent any protection on the client; it only edits the client's own text
+settings (`eqhost.txt`, `eqclient.ini`), keeping backups.
+
+## EQEmu — GPL-3.0, NOT included
+
+The servers you play on run EQEmu (https://github.com/EQEmu/EQEmu). No EQEmu code is
+included in or required by osxEQEmu.
 
 This project is an unofficial, fan-made compatibility tool and is not affiliated
-with, endorsed by, or supported by Daybreak Game Company, CodeWeavers, or Apple.
+with, endorsed by, or supported by Daybreak Game Company, the EQEmu project,
+CodeWeavers, or Apple.
 
-## Modifications to the Wine runtime (osxEQL-Buddy / osxEQL-Companion)
+## Modifications to the Wine runtime (osxEQL-Buddy / osxEQL-Companion / osxEQEmu)
 
-The Wine runtime shipped by osxEQL-Companion (identical to osxEQL-Buddy's) is CodeWeavers' source with two changes, both
+The Wine runtime shipped by osxEQEmu is CodeWeavers' source with two changes, both
 published here as source (LGPL-2.1, like Wine): the winemac.drv overlay patch below
 (`engine/patches/winemac-overlay.patch`) and the winecoreaudio.drv "follow the default
 output" change (`engine/patches/coreaudio-follow-default.py`, which edits
-`dlls/winecoreaudio.drv/coreaudio.c`). `engine/build-wine.sh` applies both; `engine/overlay.sh`
-and `engine/audiofix.sh` rebuild the two affected libraries.
+`dlls/winecoreaudio.drv/coreaudio.c`). `engine/build-wine.sh` applies both (and builds with OpenGL enabled);
+`engine/audiofix.sh` rebuilds winecoreaudio.so alone.
 
 ## EQBuddy winemac overlay patch — MIT
 
 `engine/patches/winemac-overlay.patch` (applied to the Wine runtime by
-`engine/overlay.sh` and `engine/build-wine.sh`) comes from EQBuddy 1.99.18,
-`scripts/crossover/winemac-overlay.patch`; `engine/overlay.sh` follows that
-release's `scripts/crossover/setup-overlay.sh`, and `engine/tools/winlevels.m`
-(`osxeql winlevels`) is that release's `scripts/crossover/winlevels.m`.
+`engine/build-wine.sh`, so the runtime matches osxEQL-Buddy's; opt-in, unused by
+osxEQEmu) comes from EQBuddy 1.99.18, `scripts/crossover/winemac-overlay.patch`.
 
 - Copyright (c) 2026 David Edwards.
 - License: MIT (https://github.com/DranakCorps-bot/EQBuddy/blob/v1.99.18/LICENSE).
 - Source: https://github.com/DranakCorps-bot/EQBuddy/tree/v1.99.18/scripts/crossover
-
-EQ Legends Companion (https://github.com/jmoyers/everquest-companion, © Josh Moyers,
-FSL-1.1-MIT) is a separate program that osxEQL-Companion does not include or
-redistribute; `engine/eqlcompanion.sh` downloads its official release on request,
-verifies it against the SHA-512 in the release's `latest.yml`, and runs it unmodified.

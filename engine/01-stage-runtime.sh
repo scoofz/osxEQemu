@@ -1,42 +1,30 @@
 #!/bin/bash
-# Stage the open-source runtime: verify a from-source Wine is present, then extract
-# DXMT into $BACKENDS (downloading DXMT if the cache is empty). Idempotent.
-# Wine is built by engine/build-wine.sh (or bundled inside osxEQL.app) — it is NOT
-# downloaded as a prebuilt: Gcenx/upstream prebuilts lack macdrv_functions and
-# cannot create a Metal view (gotcha #1).
+# Check the open-source Wine runtime is staged at $WINE_DIR. Idempotent.
+# Wine is built by engine/build-wine.sh (or bundled inside osxEQEmu.app) — it is NOT
+# downloaded as a prebuilt. osxEQEmu needs no DXMT: RoF2 is Direct3D 9, drawn by
+# Wine's own wined3d (see renderer_* in engine/eqemu.sh). The osxEQL runtime (DXMT
+# baked in) works as is.
 HERE="$(cd "$(dirname "$0")" && pwd)"; . "$HERE/lib.sh"
 
-fetch() {  # url dest
-    local url="$1" dest="$2"
-    [ -s "$dest" ] && { log "cached: $(basename "$dest")"; return; }
-    log "downloading $(basename "$dest") ..."
-    curl -fL --retry 3 -o "$dest" "$url" || die "download failed: $url"
-}
+if have_wine; then
+    log "wine present ($WINE_DIR): $(WINEDEBUG=-all "$WINE" --version 2>/dev/null)"
+    [ -f "$WINE_DIR/lib/wine/x86_64-unix/opengl32.so" ] \
+        && log "OpenGL: yes (wined3d OpenGL renderer available)" \
+        || warn "this runtime has no OpenGL — RoF2 will use wined3d's Vulkan renderer (MoltenVK). Rebuild with engine/build-wine.sh for OpenGL."
+    exit 0
+fi
+for app in /Applications/osxEQEmu.app /Applications/osxEQL-Companion.app /Applications/osxEQL-Buddy.app /Applications/osxEQL.app; do
+    if [ -x "$app/Contents/Resources/Wine/bin/wine" ]; then
+        die "no Wine runtime at $WINE_DIR. Point it at an installed app's runtime:
 
-# --- Wine (built from source; never downloaded here) -----------------------
-stage_wine() {
-    if have_wine; then log "wine present ($WINE_DIR): $("$WINE" --version 2>/dev/null)"; return; fi
-    die "no Wine runtime at $WINE_DIR.
+    ln -sfn '$app/Contents/Resources/Wine' '$WINE_DIR'
+
+or build one from CodeWeavers' LGPL source: engine/build-wine.sh"
+    fi
+done
+die "no Wine runtime at $WINE_DIR.
 Build it from CodeWeavers' published LGPL source:
 
     engine/build-wine.sh        # ~30-60 min; stages to $OSXEQL_HOME/Wine.cxbuild
 
-then verify DXMT render and move that tree to $WINE_DIR. (Or just run osxEQL.app,
-which ships the runtime inside the bundle.)"
-}
-
-# --- DXMT ------------------------------------------------------------------
-stage_dxmt() {
-    local tgz="$CACHE/dxmt-${DXMT_VERSION}-builtin.tar.gz"
-    fetch "$DXMT_URL" "$tgz"
-    local dest="$BACKENDS/dxmt-${DXMT_VERSION}"
-    [ -d "$dest" ] && [ -z "${FORCE:-}" ] && { log "dxmt already extracted"; return; }
-    rm -rf "$dest"; mkdir -p "$dest"
-    tar xzf "$tgz" -C "$dest" --strip-components=1 || die "dxmt extract failed"
-    xattr -dr com.apple.quarantine "$dest" 2>/dev/null || true
-    log "dxmt staged: $dest"
-}
-
-stage_wine
-stage_dxmt
-log "runtime staged."
+then move that tree to $WINE_DIR (or just use osxEQEmu.app, which ships the runtime)."

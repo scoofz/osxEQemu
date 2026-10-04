@@ -1,7 +1,7 @@
 #!/bin/bash
 # Shared plumbing for rebuilding ONE Wine unix driver (winemac.so, winecoreaudio.so)
 # from the pinned CodeWeavers CrossOver source and swapping it into the runtime(s)
-# in place — used by engine/overlay.sh and engine/audiofix.sh. Sourced after lib.sh.
+# in place — used by engine/audiofix.sh. Sourced after lib.sh.
 #
 # Minutes, not the full 30-60 min engine/build-wine.sh: one shared, configured build
 # tree ($BUILD) makes just the requested .so. Nothing prebuilt is downloaded.
@@ -13,9 +13,9 @@ TARBALL="$WS/crossover-sources-${CX_VERSION}.tar.gz"
 WORK="$WS/overlay-${CX_VERSION//./}"
 WINESRC="$WORK/sources/wine"
 BUILD="$WORK/build-winemac"                     # name kept: existing trees stay reusable
-# The installed app: osxEQL-Companion.app, else osxEQL-Buddy.app / osxEQL.app (same runtime).
+# The installed app whose runtime gets patched too: osxEQEmu.app.
 if [ -z "${OSXEQL_APP:-}" ]; then
-    for OSXEQL_APP in /Applications/osxEQL-Companion.app /Applications/osxEQL-Buddy.app /Applications/osxEQL.app; do
+    for OSXEQL_APP in /Applications/osxEQEmu.app; do
         [ -d "$OSXEQL_APP" ] && break
     done
 fi
@@ -71,7 +71,7 @@ revert_driver() {
     log "restored: $so"
 }
 
-game_running() { pgrep -f 'eqgame|LaunchPad|EQ Legends Companion\.exe|everquest-companion\.exe' >/dev/null; }
+game_running() { pgrep -f 'eqgame' >/dev/null; }
 
 find_bison() {
     local b

@@ -10,8 +10,7 @@
 # default device use macOS's DefaultOutput unit, which tracks the default itself.
 # Details and the OSXEQL_PIN_AUDIO_DEVICE=1 escape hatch: see that file.
 #
-# Rebuilds ONLY winecoreaudio.so (same tree/toolchain as engine/overlay.sh — see
-# engine/driverlib.sh) and swaps it into the runtime(s), keeping a backup.
+# Rebuilds ONLY winecoreaudio.so (see engine/driverlib.sh) and swaps it into the runtime(s), keeping a backup.
 #
 #   engine/audiofix.sh            patch the runtime(s)
 #   engine/audiofix.sh --revert   restore the original winecoreaudio.so
@@ -47,11 +46,11 @@ case "${1:-}" in
         done <<< "$rts"
         ;;
     --revert)
-        game_running && die "quit the game and the companion first"
+        game_running && die "quit the game first"
         while IFS= read -r rt; do revert_driver "$rt" "$SO" "$MARK"; done <<< "$rts"
         ;;
     "")
-        game_running && die "quit the game and the companion first ($SO is in use)"
+        game_running && die "quit the game first ($SO is in use)"
         built=""
         while IFS= read -r rt; do
             [ -f "$rt/$UNIXLIB/$SO" ] || { warn "no $SO in $rt — skipping"; continue; }

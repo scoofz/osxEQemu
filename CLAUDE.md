@@ -1,11 +1,22 @@
-# osxEQL-Companion — project rules (read this first)
+# osxEQEmu — project rules (read this first)
 
-> **This repo is osxEQL-Companion:** osxEQL (below) + EQ Legends Companion
-> (jmoyers/everquest-companion) installed, updated and run with the game —
-> `engine/eqlcompanion.sh`, `engine/companion.sh`, `engine/tools/companion-focus.swift`.
-> Sister project: osxEQL-Buddy (same runtime, EQBuddy Evolved instead). Both apps share
-> `~/Library/Application Support/osxEQL/` and its prefix; their settings files differ
-> (`eqlc*`, `companion-*`).
+> **This repo is osxEQEmu:** the EverQuest **RoF2** client on **EQEmu** servers, on the
+> osxEQL runtime. Everything EQEmu-specific is in `engine/eqemu.sh` (client folder,
+> eqhost.txt login server, wined3d renderer, eqclient.ini, game logs — shipped in the
+> .app and used by the CLI `engine/osxeqemu`) and `app/launcher.sh` (first-run setup,
+> ⌥ menu, launch). Data: `~/Library/Application Support/osxEQEmu/` — never osxEQL's.
+>
+> Key differences from the osxEQL notes below (which describe the shared runtime):
+> - RoF2 is **32-bit Direct3D 9**. DXMT (D3D10/11) is irrelevant; wined3d draws it via
+>   **OpenGL** (runtime must be built `--with-opengl`: engine/build-wine.sh now does) or
+>   wined3d's **Vulkan** renderer over MoltenVK (fallback, works on osxEQL's runtime).
+> - No LaunchPad, no installer: the player brings a client folder; launch is
+>   `explorer /desktop=osxEQEmu,WxH <client>\eqgame.exe patchme`.
+> - No `/usr/bin/python3` in app code paths (it's an Xcode-CLT stub on clean Macs):
+>   eqemu.sh uses awk/od. (build-wine.sh, a developer tool, still uses it.)
+> - Sister projects on the same runtime: osxEQL-Buddy, osxEQL-Companion (EverQuest Legends).
+
+The rest of this file is upstream osxEQL's knowledge of the runtime.
 
 **What this is:** a macOS app that runs **EverQuest Legends** on Apple Silicon using
 **open-source Wine + DXMT** (DirectX 11 → Metal). Goal: fully open-source and shareable,
@@ -29,8 +40,8 @@ Metal view to the Wine window. Stock Wine doesn't export it; CrossOver's build a
 patched Wine do. **That symbol is the crux of this whole project.**
 
 ## Where everything lives
-- **The app:** `/Applications/osxEQL-Companion.app` (scripts also accept an installed
-  `osxEQL-Buddy.app` or `osxEQL.app`: same runtime) — double-click → Daybreak LaunchPad → log in →
+- **The app (upstream):** `/Applications/osxEQL.app` — for osxEQEmu read
+  `/Applications/osxEQEmu.app`, data in `~/Library/Application Support/osxEQEmu/` — double-click → Daybreak LaunchPad → log in →
   Play → game renders via DXMT. Since v0.2.1 the bundle also carries the Homebrew dylibs
   wine dlopens (`Wine/lib/lib*.dylib`, staged by `packaging/bundle-dylibs.sh`), so the DMG
   runs on Macs with no Intel Homebrew.

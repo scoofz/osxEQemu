@@ -1,11 +1,13 @@
 #!/bin/bash
-# Build osxEQL's Wine runtime from CodeWeavers' OFFICIAL published LGPL source
+# Build osxEQEmu's Wine runtime (osxEQL's, plus OpenGL) from CodeWeavers' OFFICIAL published LGPL source
 # (crossover-sources-<ver>.tar.gz, straight from media.codeweavers.com — the
 # tarball CodeWeavers publishes to satisfy the LGPL). We compile the open-source
 # Wine ourselves with the SYSTEM clang (CrossOver 25+/26 dropped the old custom
 # cx-llvm toolchain), WoW64 (--enable-archs=i386,x86_64 -> 32-bit LaunchPad +
 # 64-bit eqgame in one tree), ship NO D3DMetal/GUI/branding, and pair it with
-# open-source DXMT for graphics. Result: a clean, redistributable Wine that has
+# open-source DXMT for graphics. osxEQEmu adds --with-opengl: the RoF2 client is
+# 32-bit Direct3D 9, which DXMT doesn't do, so wined3d draws it — through macOS
+# OpenGL (CrossOver's own D3D9 path), with Vulkan/MoltenVK as the fallback. Result: a clean, redistributable Wine that has
 # CrossOver's macdrv bridge + loader behavior DXMT needs.
 #
 # Pin the version to match the CrossOver whose macdrv ABI DXMT v0.80 is known
@@ -53,7 +55,7 @@ if ! grep -q topmost_float_over_fullscreen "$SRC/dlls/winemac.drv/cocoa_window.m
         || { echo "OVERLAY PATCH FAILED"; exit 1; }
 fi
 
-# 1c. osxEQL-Buddy: CoreAudio streams on the default device follow the macOS default
+# 1c. osxEQL-Buddy (shared): CoreAudio streams on the default device follow the macOS default
 # output (engine/patches/coreaudio-follow-default.py; see engine/audiofix.sh). Idempotent.
 /usr/bin/python3 "$HERE/patches/coreaudio-follow-default.py" "$SRC/dlls/winecoreaudio.drv/coreaudio.c" \
     || { echo "COREAUDIO PATCH FAILED"; exit 1; }
@@ -79,7 +81,7 @@ arch -x86_64 "$SRC/configure" \
     --with-mingw --with-opencl --with-pcap --with-pthread --with-sdl --with-unwind --with-vulkan \
     --without-alsa --without-capi --without-dbus --without-fontconfig --without-gettextpo \
     --without-gphoto --without-gssapi --without-gstreamer --without-inotify --without-krb5 \
-    --without-netapi --without-opengl --without-oss --without-pulse --without-sane \
+    --without-netapi --with-opengl --without-oss --without-pulse --without-sane \
     --without-udev --without-usb --without-v4l2 --without-x \
     || { echo "CONFIGURE FAILED"; exit 1; }
 
@@ -100,5 +102,6 @@ xattr -dr com.apple.quarantine "$SELF.new" 2>/dev/null || true
 rm -rf "$SELF"; mv "$SELF.new" "$SELF"
 echo "================ build + stage finished $(date) ================"
 echo "wine: $("$SELF/bin/wine" --version 2>/dev/null || echo '??')"
+echo "OpenGL (opengl32.so): $([ -f "$SELF"/lib/wine/x86_64-unix/opengl32.so ] && echo yes || echo NO)"
 echo "macdrv_functions exported: $(nm -gU "$SELF"/lib/wine/x86_64-unix/winemac.so 2>/dev/null | grep -c macdrv_functions)"
 echo "self-built tree: $SELF  (verify DXMT render here, THEN swap into $WINE_DIR)"

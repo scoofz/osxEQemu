@@ -1,0 +1,166 @@
+#!/bin/bash
+# osxeqemu — headless CLI for osxEQEmu (the RoF2 client on EQEmu servers, Apple Silicon).
+# Same settings files as the app (~/Library/Application Support/osxEQEmu).
+HERE="$(cd "$(dirname "$0")" && pwd)"
+. "$HERE/lib.sh"; . "$HERE/eqemu.sh"
+
+usage() {
+    cat <<EOF
+osxeqemu — the EverQuest RoF2 client on EQEmu servers, on macOS (Wine, open source)
+
+  osxeqemu setup               Check the Wine runtime + create the prefix
+  osxeqemu client [DIR [--copy|--in-place]]
+                               Show the client in use, or set it: --copy (default)
+                               copies DIR into the prefix, --in-place uses DIR as is
+                               (eqhost.txt / eqclient.ini in DIR get edited).
+  osxeqemu login [HOST[:PORT]|default]
+                               Login server written to eqhost.txt at each launch
+                               (default: $EQEMU_DEFAULT_LOGIN; port 5998 if omitted).
+  osxeqemu renderer [auto|gl|vulkan]
+                               How wined3d draws RoF2's Direct3D 9: gl = OpenGL (needs
+                               a runtime built --with-opengl), vulkan = MoltenVK,
+                               auto = OpenGL when available (default).
+  osxeqemu res [max|auto|WxH]  Game window size (no arg: show). max = exact display
+                               size (default; fullscreen works), auto = display minus
+                               menu/title bar (windowed only), WxH = pin.
+  osxeqemu play                Launch the client (eqgame.exe patchme)
+  osxeqemu audiofix [--status|--revert]
+                               Rebuild winecoreaudio.so so the sound follows the macOS
+                               output (headphones die -> speakers) without a restart.
+  osxeqemu logs [archive [MB]] EverQuest's own logs and their sizes; archive = move
+                               those over MB (default: all) to Logs/archive/.
+  osxeqemu status              Show what's set up
+  osxeqemu doctor              Sanity-check the runtime
+
+Paths:  data=$OSXEQL_HOME
+        prefix=$WINEPREFIX  wine=$WINE_DIR
+EOF
+}
+
+need_prefix() {
+    have_wine || die "wine not staged — run: osxeqemu setup"
+    wine_env
+    have_prefix || eqemu_ensure_prefix "$LOGDIR/wineboot.log" || die "could not create the prefix (see $LOGDIR/wineboot.log)"
+}
+
+cmd_setup() {
+    bash "$HERE/01-stage-runtime.sh" || exit 1
+    bash "$HERE/02-create-prefix.sh" || exit 1
+    log "setup complete. Next: osxeqemu client /path/to/RoF2, then osxeqemu play"
+}
+
+cmd_client() {
+    local src="${1:-}" mode="${2:---copy}" d
+    if [ -z "$src" ]; then
+        d="$(client_dir)"
+        if client_ok "$d"; then echo "client: $d ($(client_kind "$d"))"; else echo "client: none (osxeqemu client /path/to/RoF2)"; fi
+        return 0
+    fi
+    src="${src%/}"
+    client_ok "$src" || die "no eqgame.exe in $src — pick the client folder itself"
+    client_is_rof2 "$src" || warn "eqgame.exe is $(client_kind "$src") — osxEQEmu is made for RoF2"
+    case "$mode" in
+        --in-place) client_set "$src"; log "client: $src (used in place)" ;;
+        --copy)
+            need_prefix
+            case "$src/" in "$EQEMU_COPY_DIR"/*) client_set "$EQEMU_COPY_DIR"; log "client: $EQEMU_COPY_DIR"; return 0 ;; esac
+            [ -e "$EQEMU_COPY_DIR" ] && die "a copied client already exists: $EQEMU_COPY_DIR — delete it first"
+            _cli_progress() { printf '\r  %3s%%  %s ' "$1" "$2"; }
+            log "copying $src -> $EQEMU_COPY_DIR ($(client_size_kb "$src") KB)"
+            client_copy "$src" _cli_progress || die "copy failed"
+            echo; client_set "$EQEMU_COPY_DIR"; log "client: $EQEMU_COPY_DIR" ;;
+        *) die "usage: osxeqemu client DIR [--copy|--in-place]" ;;
+    esac
+}
+
+cmd_login() {
+    case "${1:-}" in
+        "")      echo "login server: $(login_server)"
+                 d="$(client_dir)"; client_ok "$d" && echo "eqhost.txt now: $(eqhost_get "$d" || echo none)  (rewritten at each launch)" ;;
+        default) rm -f "$EQEMU_LOGIN_FILE"; echo "login server: $EQEMU_DEFAULT_LOGIN" ;;
+        *)       login_set "$1" || die "not a host or host:port: $1"; echo "login server: $(login_server)" ;;
+    esac
+}
+
+cmd_renderer() {
+    case "${1:-}" in
+        "")          echo "renderer: $(renderer_setting) -> $(renderer_label "$(renderer_effective)")   (runtime OpenGL: $(runtime_has_gl && echo yes || echo 'no — rebuild with engine/build-wine.sh'))" ;;
+        auto)        rm -f "$EQEMU_RENDERER_FILE"; echo "renderer: auto -> $(renderer_label "$(renderer_effective)")" ;;
+        gl|vulkan)   echo "$1" > "$EQEMU_RENDERER_FILE"
+                     [ "$1" = gl ] && ! runtime_has_gl && warn "this runtime has no OpenGL: Vulkan will be used until it is rebuilt"
+                     echo "renderer: $1 (takes effect next launch)" ;;
+        *)           die "usage: osxeqemu renderer [auto|gl|vulkan]" ;;
+    esac
+}
+
+cmd_res() {
+    local f="$OSXEQL_HOME/resolution" cur
+    if [ $# -eq 0 ]; then
+        cur="$(cat "$f" 2>/dev/null || echo max)"; _display_size
+        echo "setting: $cur   (main display now: ${DISP_W}x${DISP_H}; max = exactly that, auto = minus 40x60 chrome)"
+        return 0
+    fi
+    case "$1" in
+        max)           rm -f "$f"; echo "resolution: max (exact display size at each launch — the default)" ;;
+        auto)          echo auto > "$f"; echo "resolution: auto (display minus menu/title bar; client kept windowed)" ;;
+        [0-9]*x[0-9]*) echo "$1" > "$f"; echo "resolution: pinned to $1" ;;
+        *)             die "usage: osxeqemu res [max|auto|WxH]" ;;
+    esac
+}
+
+cmd_play() {
+    local launchlog
+    need_prefix
+    have_client || die "no client — run: osxeqemu client /path/to/RoF2"
+    launchlog="$LOGDIR/launch-$(date +%Y%m%d-%H%M%S).log"
+    resolve_size
+    eqemu_prepare_launch "$launchlog" || die "client folder missing: $(client_dir)"
+    log "client: $(client_dir)  login: $(login_server)  renderer: $(renderer_effective)  window: ${OSXEQL_W}x${OSXEQL_H}"
+    log "log: $launchlog"
+    caffeinate -dimsu -w $$ &
+    exec "$WINE" explorer "/desktop=$EQEMU_DESKTOP,${OSXEQL_W}x${OSXEQL_H}" "$EQEMU_EXE_WIN" patchme >>"$launchlog" 2>&1
+}
+
+cmd_status() {
+    local d; d="$(client_dir)"
+    echo "wine:     $(have_wine && "$WINE" --version 2>/dev/null || echo 'not staged')"
+    echo "prefix:   $(have_prefix && echo "$WINEPREFIX" || echo 'none')"
+    echo "client:   $(client_ok "$d" && echo "$d ($(client_kind "$d"))" || echo 'none')"
+    echo "login:    $(login_server)"
+    echo "renderer: $(renderer_setting) -> $(renderer_label "$(renderer_effective)")  (runtime OpenGL: $(runtime_has_gl && echo yes || echo no))"
+    echo "audio:    $(overlay_marker_ok "$WINE_DIR/lib/wine/x86_64-unix/winecoreaudio.so" osxeql-audiofix && echo 'follows the macOS default output' || echo 'stock, pinned to one device (osxeqemu audiofix)')"
+}
+
+cmd_doctor() {
+    echo "== osxEQEmu doctor =="
+    cmd_status
+    have_wine || return 0
+    echo "-- 32-bit (WoW64) support --"
+    ls "$WINE_DIR"/lib/wine/i386-windows/d3d9.dll >/dev/null 2>&1 && echo "  i386 d3d9.dll present" || echo "  i386 d3d9.dll MISSING (runtime built without i386?)"
+    echo "-- renderers --"
+    runtime_has_gl && echo "  opengl32.so present (wined3d OpenGL)" || echo "  no opengl32.so: rebuild with engine/build-wine.sh (--with-opengl) for OpenGL"
+    [ -f "$WINE_DIR/lib/MoltenVK_icd.json" ] && echo "  MoltenVK ICD present (wined3d Vulkan)" || echo "  no bundled MoltenVK ICD json (Vulkan may fall back to a system ICD)"
+}
+
+case "${1:-}" in
+    setup)         cmd_setup ;;
+    client)        shift; cmd_client "$@" ;;
+    login)         shift; cmd_login "$@" ;;
+    renderer)      shift; cmd_renderer "$@" ;;
+    res)           shift; cmd_res "$@" ;;
+    play)          cmd_play ;;
+    audiofix)      shift; bash "$HERE/audiofix.sh" "$@" ;;
+    logs)
+        shift
+        case "${1:-}" in
+            "")      echo "EverQuest logs in $(gamelog_dir) (startup warning above $(gamelog_threshold_mb) MB):"
+                     gamelog_list 0 | gamelog_describe | sed 's/^/  /' ;;
+            archive) moved="$(gamelog_list "${2:-0}" | gamelog_archive)" || die "quit the game first"
+                     log "archived ${moved:-0} MB to $(gamelog_dir)/archive" ;;
+            *)       die "usage: osxeqemu logs [archive [MB]]" ;;
+        esac ;;
+    status)        cmd_status ;;
+    doctor)        cmd_doctor ;;
+    ""|-h|--help)  usage ;;
+    *)             die "unknown command '$1' (see: osxeqemu --help)" ;;
+esac

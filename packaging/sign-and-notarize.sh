@@ -1,10 +1,10 @@
 #!/bin/bash
-# sign-and-notarize.sh — sign an assembled osxEQL-Companion.app with a Developer ID and
+# sign-and-notarize.sh — sign an assembled osxEQEmu.app with a Developer ID and
 # optionally notarize + staple it for Gatekeeper-clean distribution.
 #
 # Usage:
-#   packaging/sign-and-notarize.sh [dist/osxEQL-Companion.app]
-#   packaging/sign-and-notarize.sh --notarize [dist/osxEQL-Companion.app]
+#   packaging/sign-and-notarize.sh [dist/osxEQEmu.app]
+#   packaging/sign-and-notarize.sh --notarize [dist/osxEQEmu.app]
 #
 # Environment (secrets — NEVER commit these):
 #   CODESIGN_IDENTITY   Developer ID Application identity (required)
@@ -36,7 +36,7 @@ while [[ $# -gt 0 ]]; do
         *)          APP="$1"; shift ;;
     esac
 done
-APP="${APP:-$(cd "$HERE/.." && pwd)/dist/osxEQL-Companion.app}"
+APP="${APP:-$(cd "$HERE/.." && pwd)/dist/osxEQEmu.app}"
 
 # --- preflight ----------------------------------------------------------------
 [ -d "$APP" ]           || { echo "error: no app at $APP"; exit 1; }
@@ -109,7 +109,7 @@ fi
 # --- 6. notarize --------------------------------------------------------------
 echo ""
 echo "submitting for notarization…"
-ZIP="$(mktemp -d)/osxEQL.zip"
+ZIP="$(mktemp -d)/osxEQEmu.zip"
 ditto -c -k --keepParent "$APP" "$ZIP"
 xcrun notarytool submit "$ZIP" \
     --key "$NOTARIZE_KEY" \
