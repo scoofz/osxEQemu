@@ -36,6 +36,14 @@ export WINEDLLPATH="$WINE_DIR/lib/wine/x86_64-windows:$WINE_DIR/lib/wine/i386-wi
 # client's dbg.txt can be pinned to a dll (crash_report in eqemu.sh). A few hundred
 # lines per launch.
 export WINEDEBUG="fixme-all,+loaddll,+fps"   # +fps: wined3d logs fps once a second (osxeqemu perf)
+# Extra Wine log channels for one investigation, without rebuilding: the file
+# ~/Library/Application Support/osxEQEmu/winedebug holds e.g. "warn+d3d,warn+vulkan".
+# It also turns on MoltenVK's own log (MVK_CONFIG_LOG_LEVEL 3 = info). Delete the
+# file to go back to normal logs.
+if [ -s "$OSXEQL_HOME/winedebug" ]; then
+    export WINEDEBUG="$WINEDEBUG,$(tr -cd 'a-z0-9+,_-' < "$OSXEQL_HOME/winedebug")"
+    export MVK_CONFIG_LOG_LEVEL=3
+fi
 export WINEDLLOVERRIDES="mscoree,mshtml="
 export DYLD_FALLBACK_LIBRARY_PATH="$WINE_DIR/lib:${DYLD_FALLBACK_LIBRARY_PATH:-}"
 # Vulkan: the bundled MoltenVK via the bundled ICD json (wined3d's Vulkan renderer).
@@ -301,6 +309,7 @@ collect_diagnostics(){
         echo "login server: $(login_server)"
         echo "renderer: setting $(renderer_setting), effective $(renderer_effective), runtime OpenGL: $(runtime_has_gl && echo yes || echo no)"
         echo "msync: $(eqemu_msync)  VideoMemorySize: $(eqemu_vram_mb) MB"
+        echo "extra Wine log channels (winedebug file): $(cat "$OSXEQL_HOME/winedebug" 2>/dev/null || echo none)"
         echo "d3dx9: $(d3dx9_mode), Microsoft dlls installed: $(d3dx9_installed && tr '\n' ' ' < "$D3DX9_STAMP" || echo no)"
         for f in resolution log-check log-threshold-mb; do
             echo "$f: $(cat "$OSXEQL_HOME/$f" 2>/dev/null || echo '(default)')"

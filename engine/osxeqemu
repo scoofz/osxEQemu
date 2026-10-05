@@ -150,7 +150,13 @@ cmd_play() {
     caffeinate -dimsu -w $$ &
     echo "$launchlog" > "$LOGDIR/.last-cli-launch"
     d="$(d3dx9_overrides)"; [ -n "$d" ] && export WINEDLLOVERRIDES="${WINEDLLOVERRIDES:-mscoree,mshtml=};$d"
-    WINEDEBUG="fixme-all,+loaddll,+fps" exec "$WINE" explorer "/desktop=$EQEMU_DESKTOP,${OSXEQL_W}x${OSXEQL_H}" "$EQEMU_EXE_WIN" patchme >>"$launchlog" 2>&1
+    if [ -s "$OSXEQL_HOME/winedebug" ]; then   # extra channels, see app/launcher.sh
+        export MVK_CONFIG_LOG_LEVEL=3
+        d="fixme-all,+loaddll,+fps,$(tr -cd 'a-z0-9+,_-' < "$OSXEQL_HOME/winedebug")"
+    else
+        d="fixme-all,+loaddll,+fps"
+    fi
+    WINEDEBUG="$d" exec "$WINE" explorer "/desktop=$EQEMU_DESKTOP,${OSXEQL_W}x${OSXEQL_H}" "$EQEMU_EXE_WIN" patchme >>"$launchlog" 2>&1
 }
 
 cmd_status() {
