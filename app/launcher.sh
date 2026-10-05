@@ -98,6 +98,9 @@ start_progress_window(){
     PROGRESS_ON=1
 }
 copy_progress(){ progress PROGRESS "$1"; progress DETAIL "$2"; }
+# Close the window AND forget it, so a later step (D3DX9 download) opens a new one
+# instead of writing into the closed one.
+progress_close(){ progress QUIT; [ -n "$PROGRESS_ON" ] && { exec 9>&-; PROGRESS_ON=""; }; return 0; }
 
 # ---- self-heal stale wine loader temp dirs (osxEQL gotcha) -------------------
 for _wt in "${TMPDIR:-/tmp}"/winetemp-*; do
@@ -241,7 +244,7 @@ d3dx9_ensure(){
         progress DETAIL "See logs/setup.log. The game starts with Wine's own for now."
         alert "Microsoft's D3DX9 could not be downloaded or installed (see logs/setup.log). The game will start with Wine's own — retry from the Option (⌥) menu."
     fi
-    progress QUIT; [ -n "$PROGRESS_ON" ] && { exec 9>&-; PROGRESS_ON=""; }
+    progress_close
     return 0
 }
 
@@ -398,12 +401,12 @@ settings_menu(){
 # ---- go ---------------------------------------------------------------------
 if ! have_client; then
     : > "$SETUP_LOG"
-    if ! choose_client first; then progress QUIT; exit 0; fi
+    if ! choose_client first; then progress_close; exit 0; fi
     choose_login
     [ -f "$EQEMU_LOGIN_FILE" ] || login_set "$(login_default)"
     progress DONE "Your client is ready — starting EverQuest"
     sleep 2
-    progress QUIT
+    progress_close
 elif option_held; then
     settings_menu
 fi
@@ -421,5 +424,5 @@ _dx="$(d3dx9_overrides)"
 echo "WINEDLLOVERRIDES=$WINEDLLOVERRIDES" >>"$LOG"
 eqemu_prepare_launch "$LOG" || { alert "The client folder is missing: $(client_dir)\n\nHold Option (⌥) while opening the app to choose it again."; exit 1; }
 # The client in a Wine virtual desktop sized to the display (mouse 1:1, fullscreen works).
-progress QUIT; [ -n "$PROGRESS_ON" ] && exec 9>&-
+progress_close
 exec "$WINE" explorer "/desktop=$EQEMU_DESKTOP,${OSXEQL_W}x${OSXEQL_H}" "$EQEMU_EXE_WIN" patchme >>"$LOG" 2>&1

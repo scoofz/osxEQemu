@@ -26,6 +26,10 @@ EQEMU_LOGIN_FILE="$OSXEQL_HOME/login-server"       # host:port
 EQEMU_RENDERER_FILE="$OSXEQL_HOME/renderer"        # auto|gl|vulkan
 EQEMU_COPY_DIR="$WINEPREFIX/drive_c/EverQuest RoF2" # where "Copy" puts the client
 EQEMU_DESKTOP="osxEQEmu"                           # Wine virtual desktop name
+# Defined here, not only in lib.sh: the app sources this file WITHOUT lib.sh, and
+# its launcher runs with `set -u` — a variable only lib.sh sets kills it on the spot
+# (0.1.5's D3DX9 download died at its first line on CACHE).
+CACHE="${CACHE:-$OSXEQL_HOME/cache}"
 
 # ---- prefix -------------------------------------------------------------------
 # 64-bit prefix (WoW64 runs the 32-bit client in it). No crash dialog: a modal
