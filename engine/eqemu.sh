@@ -401,16 +401,16 @@ vram_apply() {
 # can't offer). The driver's dylib must contain x86_64 (Wine runs under Rosetta).
 EQEMU_VULKAN_ICD_FILE="$OSXEQL_HOME/vulkan-icd"
 eqemu_vulkan_env() {
-    local src="$WINE_DIR/lib/MoltenVK_icd.json" icd="$OSXEQL_HOME/MoltenVK_icd.json" other=""
+    local src="$WINE_DIR/lib/MoltenVK_icd.json" icd="$OSXEQL_HOME/vulkan_icd.json" other="" lib
     [ -f "$EQEMU_VULKAN_ICD_FILE" ] && other="$(head -1 "$EQEMU_VULKAN_ICD_FILE")"
-    if [ -n "$other" ] && [ -f "$other" ]; then
-        export VK_DRIVER_FILES="$other" VK_ICD_FILENAMES="$other"
-        [ -s "$OSXEQL_HOME/winedebug" ] && export VK_LOADER_DEBUG="${VK_LOADER_DEBUG:-error,warn,driver}"
-        return 0
-    fi
+    [ -n "$other" ] && [ -f "$other" ] && src="$other"
     [ -f "$src" ] || return 0
+    # Same fix for any driver: not a hidden "portability" driver, and an absolute
+    # library_path (a relative one is relative to the json's own folder).
+    lib="$(sed -n 's|.*"library_path"[[:space:]]*:[[:space:]]*"\([^"]*\)".*|\1|p' "$src" | head -1)"
+    case "$lib" in /*|"") ;; *) lib="$(cd "$(dirname "$src")" && pwd)/$lib" ;; esac
     if ! sed -e 's|"is_portability_driver"[[:space:]]*:[[:space:]]*true|"is_portability_driver": false|' \
-             -e "s|\"library_path\"[[:space:]]*:[[:space:]]*\"[^\"]*\"|\"library_path\": \"$WINE_DIR/lib/libMoltenVK.dylib\"|" \
+             -e "s|\"library_path\"[[:space:]]*:[[:space:]]*\"[^\"]*\"|\"library_path\": \"$lib\"|" \
              "$src" > "$icd.tmp" 2>/dev/null || ! mv -f "$icd.tmp" "$icd"; then
         rm -f "$icd.tmp"; icd="$src"
     fi
