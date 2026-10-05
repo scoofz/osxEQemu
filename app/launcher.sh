@@ -220,6 +220,17 @@ d3dx9_ensure(){
     return 0
 }
 
+# NB: no `case` inside "$( … )" anywhere in these scripts — macOS's /bin/bash 3.2
+# misparses it ("syntax error near unexpected token") and the whole app then never
+# starts. Use a function like this one instead (build-app.sh checks with /bin/bash -n).
+d3dx9_menu_label(){
+    case "$(d3dx9_mode)" in
+        native)  if d3dx9_installed; then echo "Microsoft's"; else echo "Microsoft's (not installed yet)"; fi ;;
+        builtin) echo "Wine's" ;;
+        *)       echo "not chosen" ;;
+    esac
+}
+
 # ---- settings & troubleshooting menu: hold ⌥ Option while opening the app ----
 option_held(){
     # NSEvent.modifierFlags is a class property: no Accessibility permission needed.
@@ -333,7 +344,7 @@ settings_menu(){
             "Login server: $(login_server)"
             "Client: ${dir:-none} — change…"
             "$(renderer_menu_label)"
-            "DirectX 9 helpers (D3DX9): $(case "$(d3dx9_mode)" in native) echo "Microsoft's$(d3dx9_installed || echo ' (not installed yet)')" ;; builtin) echo "Wine's" ;; *) echo "not chosen" ;; esac)"
+            "DirectX 9 helpers (D3DX9): $(d3dx9_menu_label)"
             "Archive game logs (largest: ${largest:-0} MB)"
             "Warn me when a game log is over $(gamelog_threshold_mb) MB: $(_onoff "$(_flag log-check on)")"
             "Collect diagnostics (zip on the Desktop)"

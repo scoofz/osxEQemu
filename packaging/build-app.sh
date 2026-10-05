@@ -33,6 +33,14 @@ OUT="$REPO/dist/osxEQEmu.app"
 [ -x "$WINE_SRC/bin/wine" ]                                   || { echo "no wine at $WINE_SRC/bin/wine"; exit 1; }
 [ -f "$WINE_SRC/lib/wine/i386-windows/d3d9.dll" ]            || { echo "no 32-bit (i386) d3d9.dll in $WINE_SRC — RoF2 needs a WoW64 runtime (engine/build-wine.sh)"; exit 1; }
 [ -f "$REPO/assets/icon/AppIcon.icns" ]                      || { echo "missing assets/icon/AppIcon.icns — run assets/icon/generate.py + build_icns.sh"; exit 1; }
+# The app's scripts run under macOS's /bin/bash 3.2, which rejects some syntax newer
+# bash accepts (e.g. `case` inside "$( … )"): a parse error there means the app
+# silently never starts. Check them with that exact bash before shipping.
+for _s in app/launcher.sh engine/eqemu.sh engine/osxeqemu engine/lib.sh; do
+    /bin/bash -n "$REPO/$_s" || { echo "FATAL: $_s doesn't parse with /bin/bash ($(/bin/bash -c 'echo $BASH_VERSION')) — the app would not start"; exit 1; }
+done
+grep -nE '\$\(case ' "$REPO/app/launcher.sh" "$REPO/engine/eqemu.sh" "$REPO/engine/osxeqemu" \
+    && { echo "FATAL: 'case' inside \$( ) above — breaks macOS bash 3.2; use a function"; exit 1; }
 xcrun -f swiftc >/dev/null 2>&1                              || { echo "swiftc not found — install Xcode Command Line Tools"; exit 1; }
 
 # --- assemble --------------------------------------------------------------
