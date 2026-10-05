@@ -529,15 +529,32 @@ eqemu_prepare_launch() {
 # 79A40000: builtin"): the crash address falls in the closest module loaded below it.
 # $1 = the Wine log of that launch (default: the app's app-launch.log).
 crash_report() {
-    local dbg log line addr l mod base best=0 bestmod=""
+    local dbg log line addr="" src="" l mod base best=0 bestmod=""
     dbg="$(client_dir)/Logs/dbg.txt"
     log="${1:-$OSXEQL_HOME/logs/app-launch.log}"
-    [ -f "$dbg" ] || { echo "no crash log ($dbg)"; return 1; }
-    line="$(grep -a 'fatal error' "$dbg" | tail -1)"
-    [ -n "$line" ] || { echo "no crash recorded in $dbg"; return 0; }
-    echo "last crash: ${line#*]}"
-    addr="$(printf '%s' "$line" | sed -n 's/.*ADDR=0x\([0-9A-Fa-f]*\).*/\1/p')"
-    if [ -n "$addr" ] && [ -f "$log" ]; then
+    line="$(grep -a 'fatal error' "$dbg" 2>/dev/null | tail -1)"
+    if [ -n "$line" ]; then
+        echo "last crash (client's dbg.txt): ${line#*]}"
+        addr="$(printf '%s' "$line" | sed -n 's/.*ADDR=0x\([0-9A-Fa-f]*\).*/\1/p')"; src="dbg.txt"
+    fi
+    # No crash dump from the client (it died before its own handler, e.g. inside a
+    # graphics dll): Wine's +seh channel (winedebug file) logs every exception as
+    # "dispatch_exception code=c0000005 … addr=7A123456". Take the last fatal-looking
+    # one (access violation / illegal instruction / stack overflow / C++ exception).
+    if [ -z "$addr" ] && [ -f "$log" ]; then
+        line="$(grep -a 'dispatch_exception' "$log" | grep -a -iE 'code=(c0000005|c000001d|c00000fd|e06d7363|c0000409)' | tail -1)"
+        if [ -n "$line" ]; then
+            echo "last exception (Wine +seh): ${line#*dispatch_exception }"
+            addr="$(printf '%s' "$line" | sed -n 's/.*addr=\(0x\)\{0,1\}\([0-9A-Fa-f]*\).*/\2/p')"; src="+seh"
+        fi
+    fi
+    if [ -z "$addr" ]; then
+        echo "no crash recorded: no dump in $dbg, and no exception in $log"
+        grep -aq 'start_debugger' "$log" 2>/dev/null \
+            && echo "(Wine did see an unhandled exception — add +seh to the winedebug file and crash once more)"
+        return 0
+    fi
+    if [ -f "$log" ]; then
         while IFS= read -r l; do
             mod="${l#*Loaded L\"}"; mod="${mod%%\" at *}"
             base="${l##*\" at }"; base="${base%%:*}"
@@ -548,12 +565,14 @@ crash_report() {
         done < <(grep -a 'trace:loaddll' "$log" | grep -a 'Loaded L"')
     fi
     if [ -n "$bestmod" ]; then
-        printf 'crash address 0x%s = %s + 0x%x\n' "$addr" "${bestmod//\\\\/\\}" $(( 16#$addr - best ))
+        printf 'crash address 0x%s (%s) = %s + 0x%x\n' "$addr" "$src" "${bestmod//\\\\/\\}" $(( 16#$addr - best ))
     else
-        echo "crash address 0x${addr:-?}: module unknown (no dll load lines in $log — needs osxEQEmu 0.1.2+, then crash once more)"
+        echo "crash address 0x$addr ($src): module unknown (no dll load lines in $log)"
     fi
-    echo "--- dbg.txt around the crash (hex dump lines left out)"
-    grep -a -v -E '[0-9a-fA-F]{8} ([0-9a-fA-F]{2} ){8} ' "$dbg" | tail -40
+    if [ -f "$dbg" ]; then
+        echo "--- dbg.txt, last lines (hex dump lines left out)"
+        grep -a -v -E '[0-9a-fA-F]{8} ([0-9a-fA-F]{2} ){8} ' "$dbg" | tail -15
+    fi
 }
 
 # ---- performance report -------------------------------------------------------------
