@@ -184,7 +184,7 @@ renderer_effective() {
     esac
 }
 renderer_label() {
-    case "$1" in gl) echo "OpenGL" ;; vulkan) echo "Vulkan (MoltenVK)" ;; *) echo "$1" ;; esac
+    case "$1" in gl) echo "OpenGL" ;; vulkan) echo "Vulkan (MoltenVK, experimental)" ;; *) echo "$1" ;; esac
 }
 # Write HKCU\Software\Wine\Direct3D\renderer when it changed (one wine call; the
 # applied value is remembered inside the prefix, so a new prefix gets it again).
@@ -195,6 +195,87 @@ renderer_apply() {
     "$WINE" reg add 'HKCU\Software\Wine\Direct3D' /v renderer /t REG_SZ /d "$r" /f >>"$log" 2>&1 \
         && printf '%s\n' "$r" > "$stamp"
     echo "renderer: $r (setting $(renderer_setting), runtime OpenGL: $(runtime_has_gl && echo yes || echo no))" >>"$log"
+}
+
+# ---- D3DX9: Microsoft's, not Wine's ---------------------------------------------
+# RoF2's EQGraphicsDX9.dll compiles its shaders through d3dx9_30.dll (D3DX effects).
+# Wine's builtin d3dx9 is incomplete there: on the Mac, character models stayed
+# invisible and the world had an "underwater" fog (first test, 2026-10). Linux players
+# install Microsoft's (winetricks d3dx9). We do the same: the official DirectX June
+# 2010 redistributable, from Microsoft (or winetricks' mirrors), REFUSED unless it
+# matches winetricks' SHA-256; only the 32-bit d3dx9_*.dll go into the prefix's
+# syswow64, loaded native-first (WINEDLLOVERRIDES, see d3dx9_overrides).
+# Setting file d3dx9: native | builtin (unset = the app asks once).
+D3DX9_FILE="$OSXEQL_HOME/d3dx9"
+D3DX9_SHA256="053f76dcbb28802e23341b6a787e3b0791c0fa5c8d4d011b1044172dbf89c73b"
+D3DX9_URLS="https://download.microsoft.com/download/8/4/A/84A35BF1-DAFE-4AE8-82AF-AD2AE20B6B14/directx_Jun2010_redist.exe
+https://files.holarse-linuxgaming.de/mirrors/microsoft/directx_Jun2010_redist.exe
+https://web.archive.org/web/2021id_/https://download.microsoft.com/download/8/4/A/84A35BF1-DAFE-4AE8-82AF-AD2AE20B6B14/directx_Jun2010_redist.exe"
+D3DX9_STAMP="$WINEPREFIX/.osxeqemu-d3dx9"           # list of the dlls we installed
+
+d3dx9_mode() {
+    local m=""
+    [ -f "$D3DX9_FILE" ] && m="$(tr -cd 'a-z' < "$D3DX9_FILE")"
+    case "$m" in native|builtin) echo "$m" ;; *) echo unset ;; esac
+}
+d3dx9_set() { echo "$1" > "$D3DX9_FILE"; }
+d3dx9_installed() { [ -s "$D3DX9_STAMP" ] && [ -f "$WINEPREFIX/drive_c/windows/syswow64/d3dx9_30.dll" ]; }
+
+# "d3dx9_24,…,d3dx9_43=n,b" for WINEDLLOVERRIDES when Microsoft's are wanted and
+# installed; empty otherwise (Wine's builtin then).
+d3dx9_overrides() {
+    [ "$(d3dx9_mode)" = native ] && d3dx9_installed || return 0
+    printf '%s=n,b\n' "$(sed 's/\.dll$//' "$D3DX9_STAMP" | paste -sd, -)"
+}
+
+sha256_of() {
+    [ -f "$1" ] || return 0
+    if command -v shasum >/dev/null 2>&1; then shasum -a 256 "$1" | cut -d' ' -f1; else sha256sum "$1" | cut -d' ' -f1; fi
+}
+
+# Download (cached in $CACHE), verify, extract, install. $1 = log.
+d3dx9_install() {
+    local log="${1:-/dev/null}" redist="$CACHE/directx_Jun2010_redist.exe" url tmp n=0 cab f sys
+    mkdir -p "$CACHE"
+    if [ "$(sha256_of "$redist")" != "$D3DX9_SHA256" ]; then
+        rm -f "$redist"
+        while IFS= read -r url; do
+            echo "d3dx9: downloading $url" >>"$log"
+            curl -fL --retry 2 --connect-timeout 20 -o "$redist.part" "$url" >>"$log" 2>&1 || continue
+            if [ "$(sha256_of "$redist.part")" = "$D3DX9_SHA256" ]; then mv -f "$redist.part" "$redist"; break; fi
+            echo "d3dx9: SHA-256 mismatch from $url — discarded" >>"$log"
+        done <<< "$D3DX9_URLS"
+        rm -f "$redist.part"
+        [ -f "$redist" ] || { echo "d3dx9: no verified download" >>"$log"; return 1; }
+    fi
+    tmp="$(mktemp -d)" || return 1
+    # The redist is a self-extracting cabinet: macOS's tar (libarchive) reads it
+    # directly; if not, its own extractor runs under Wine (/Q quiet, /T: target).
+    ( cd "$tmp" && tar -xf "$redist" '*d3dx9*x86*' ) >>"$log" 2>&1
+    if ! ls "$tmp"/*d3dx9*x86*.cab >/dev/null 2>&1; then
+        echo "d3dx9: tar couldn't read the redist; extracting with Wine" >>"$log"
+        "$WINE" "$redist" /Q "/T:$(win_path "$tmp")" >>"$log" 2>&1
+        "$WINESERVER" -w
+    fi
+    mkdir -p "$tmp/dll"
+    for cab in "$tmp"/*[dD]3[dD][xX]9*x86*.cab "$tmp"/*[dD]3[dD][xX]9*X86*.cab; do
+        [ -f "$cab" ] || continue
+        ( cd "$tmp/dll" && tar -xf "$cab" ) >>"$log" 2>&1
+    done
+    sys="$WINEPREFIX/drive_c/windows/syswow64"
+    [ -d "$sys" ] || { echo "d3dx9: no syswow64 in the prefix" >>"$log"; rm -rf "$tmp"; return 1; }
+    : > "$D3DX9_STAMP.new"
+    for f in "$tmp"/dll/[dD]3[dD][xX]9_*.dll; do
+        [ -f "$f" ] || continue
+        cp -f "$f" "$sys/$(basename "$f" | tr 'A-Z' 'a-z')" && basename "$f" | tr 'A-Z' 'a-z' >> "$D3DX9_STAMP.new" && n=$((n+1))
+    done
+    rm -rf "$tmp"
+    if [ "$n" -gt 0 ] && grep -qx 'd3dx9_30.dll' "$D3DX9_STAMP.new"; then
+        sort -u "$D3DX9_STAMP.new" > "$D3DX9_STAMP"; rm -f "$D3DX9_STAMP.new"
+        echo "d3dx9: installed $n Microsoft d3dx9 dlls into syswow64" >>"$log"
+        return 0
+    fi
+    rm -f "$D3DX9_STAMP.new"; echo "d3dx9: extraction found no d3dx9_30.dll" >>"$log"; return 1
 }
 
 # ---- eqclient.ini: match the Wine virtual desktop -------------------------------
@@ -293,7 +374,7 @@ eqemu_prepare_launch() {
     eqclient_pin "$dir" "$OSXEQL_W" "$OSXEQL_H" "$OSXEQL_FULLDISPLAY"
     renderer_apply "$log"
     EQEMU_EXE_WIN="$(win_path "$dir")\\eqgame.exe"
-    echo "client: $dir ($(client_kind "$dir"))  login: $(login_server)  window: ${OSXEQL_W}x${OSXEQL_H}" >>"$log"
+    echo "client: $dir ($(client_kind "$dir"))  login: $(login_server)  window: ${OSXEQL_W}x${OSXEQL_H}  d3dx9: $(d3dx9_mode)$(d3dx9_installed && echo ' (Microsoft dlls installed)')" >>"$log"
     cd "$dir"
 }
 

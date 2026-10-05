@@ -182,6 +182,44 @@ return (button returned of r) & \"|\" & (text returned of r)")"
     return 0
 }
 
+# ---- Microsoft D3DX9 (d3dx9_* in Resources/eqemu.sh) ------------------------
+# Asked once; then installed (95 MB download from Microsoft) before the first launch
+# that needs it. Without it, Wine's own d3dx9 draws RoF2 without character models
+# and with an "underwater" fog.
+d3dx9_offer(){
+    local choice
+    choice=$(osa <<'OSA'
+set msg to "RoF2 draws its characters and effects through Microsoft's DirectX 9 helper library (D3DX9). Wine's own replacement is incomplete: characters stay invisible and the world looks under water." & return & return & "osxEQEmu can download Microsoft's (the official DirectX June 2010 package, 95 MB, checked against its published SHA-256) and use it for the game." & return & return & "Change this any time: hold Option (⌥) while opening the app."
+set r to display dialog msg buttons {"Not now", "Use Wine's", "Download Microsoft's"} default button "Download Microsoft's" with title "osxEQEmu" with icon note
+return button returned of r
+OSA
+)
+    case "$choice" in
+        "Download Microsoft's") d3dx9_set native ;;
+        "Use Wine's")           d3dx9_set builtin ;;
+    esac
+    return 0
+}
+d3dx9_ensure(){
+    [ "$(d3dx9_mode)" = unset ] && d3dx9_offer
+    [ "$(d3dx9_mode)" = native ] || return 0
+    d3dx9_installed && return 0
+    start_progress_window
+    progress PHASE "Downloading Microsoft's DirectX 9 helpers (95 MB)"
+    progress INDET
+    progress DETAIL "From download.microsoft.com — checked against its SHA-256"
+    if d3dx9_install "$SETUP_LOG"; then
+        progress DONE "Microsoft's D3DX9 installed"
+        sleep 1
+    else
+        progress FAIL "Could not install Microsoft's D3DX9"
+        progress DETAIL "See logs/setup.log. The game starts with Wine's own for now."
+        alert "Microsoft's D3DX9 could not be downloaded or installed (see logs/setup.log). The game will start with Wine's own — retry from the Option (⌥) menu."
+    fi
+    progress QUIT; [ -n "$PROGRESS_ON" ] && { exec 9>&-; PROGRESS_ON=""; }
+    return 0
+}
+
 # ---- settings & troubleshooting menu: hold ⌥ Option while opening the app ----
 option_held(){
     # NSEvent.modifierFlags is a class property: no Accessibility permission needed.
@@ -222,6 +260,7 @@ collect_diagnostics(){
         echo "client: ${dir:-none} ($( [ -n "$dir" ] && client_kind "$dir"))"
         echo "login server: $(login_server)"
         echo "renderer: setting $(renderer_setting), effective $(renderer_effective), runtime OpenGL: $(runtime_has_gl && echo yes || echo no)"
+        echo "d3dx9: $(d3dx9_mode), Microsoft dlls installed: $(d3dx9_installed && tr '\n' ' ' < "$D3DX9_STAMP" || echo no)"
         for f in resolution log-check log-threshold-mb; do
             echo "$f: $(cat "$OSXEQL_HOME/$f" 2>/dev/null || echo '(default)')"
         done
@@ -294,6 +333,7 @@ settings_menu(){
             "Login server: $(login_server)"
             "Client: ${dir:-none} — change…"
             "$(renderer_menu_label)"
+            "DirectX 9 helpers (D3DX9): $(case "$(d3dx9_mode)" in native) echo "Microsoft's$(d3dx9_installed || echo ' (not installed yet)')" ;; builtin) echo "Wine's" ;; *) echo "not chosen" ;; esac)"
             "Archive game logs (largest: ${largest:-0} MB)"
             "Warn me when a game log is over $(gamelog_threshold_mb) MB: $(_onoff "$(_flag log-check on)")"
             "Collect diagnostics (zip on the Desktop)"
@@ -308,6 +348,8 @@ settings_menu(){
             "Login server"*) choose_login ;;
             "Client:"*)      choose_client ;;
             Graphics*)       renderer_cycle ;;
+            "DirectX 9 helpers"*)
+                if [ "$(d3dx9_mode)" = native ] && d3dx9_installed; then d3dx9_set builtin; else d3dx9_set native; fi ;;
             "Archive game logs"*) archive_game_logs_dialog 1 ;;   # every log over 1 MB
             Warn*)           _toggle log-check ;;
             Collect*)        collect_diagnostics ;;
@@ -336,8 +378,12 @@ if [ ! -f "$WINEPREFIX/system.reg" ]; then
     note "Setting up the Wine environment (first launch, about a minute)…"
     eqemu_ensure_prefix "$SETUP_LOG" || { alert "Could not create the Wine environment. See logs/setup.log."; exit 1; }
 fi
+d3dx9_ensure
 check_big_game_logs
 : > "$LOG"
+_dx="$(d3dx9_overrides)"
+[ -n "$_dx" ] && export WINEDLLOVERRIDES="$WINEDLLOVERRIDES;$_dx"
+echo "WINEDLLOVERRIDES=$WINEDLLOVERRIDES" >>"$LOG"
 eqemu_prepare_launch "$LOG" || { alert "The client folder is missing: $(client_dir)\n\nHold Option (⌥) while opening the app to choose it again."; exit 1; }
 # The client in a Wine virtual desktop sized to the display (mouse 1:1, fullscreen works).
 progress QUIT; [ -n "$PROGRESS_ON" ] && exec 9>&-

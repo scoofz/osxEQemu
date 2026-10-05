@@ -59,7 +59,8 @@ osxEQEmu:
 
 - **Login server** — change it any time;
 - **Client** — choose another client folder;
-- **Graphics** — Automatic / OpenGL / Vulkan (try the other one if the screen is black
+- **DirectX 9 helpers (D3DX9)** — Microsoft's (downloaded once, recommended) or Wine's;
+- **Graphics** — Automatic / OpenGL / Vulkan (experimental) (try the other one if the screen is black
   or glitchy);
 - **Archive game logs** (huge `/log` files cause freezes — the app also warns at launch)
   and the warning threshold;
@@ -96,10 +97,22 @@ draw through two backends:
 
 | Renderer | How | When |
 |---|---|---|
-| **OpenGL** | wined3d → macOS OpenGL 4.1 (deprecated by Apple, still shipped in macOS 26). CrossOver's long-standing Direct3D 9 path. | **Default** when the runtime has OpenGL — needs a runtime built by this repo's `engine/build-wine.sh` (`--with-opengl`). |
-| **Vulkan** | wined3d's Vulkan renderer → the bundled MoltenVK → Metal. | Automatic fallback when the runtime has no OpenGL (the osxEQL release runtimes are built `--without-opengl`); selectable any time. |
+| **OpenGL** | wined3d → macOS OpenGL 4.1 (deprecated by Apple, still shipped in macOS 26). CrossOver's long-standing Direct3D 9 path. | **Default.** osxEQL's runtimes have it (`opengl32.so`); `build-wine.sh` now asks for it explicitly too. |
+| **Vulkan** | wined3d's Vulkan renderer → the bundled MoltenVK → Metal. | **Experimental.** On the first Mac test it found no GPU for the 32-bit client. |
 
-Setting: ⌥ menu → **Graphics**, or `osxeqemu renderer auto|gl|vulkan`. It is written to
+### D3DX9: Microsoft's, not Wine's
+
+RoF2 compiles its shaders — animated character models, fog, water — through
+`d3dx9_30.dll`, Microsoft's DirectX 9 helper library. Wine ships its own replacement,
+which is incomplete there: on the first Mac test, characters were **invisible** and the
+world looked **under water**. Like Linux players do (`winetricks d3dx9`), osxEQEmu offers
+once to download **Microsoft's**: the official *DirectX End-User Runtimes (June 2010)*
+package from download.microsoft.com (95 MB, cached), **refused unless it matches the
+SHA-256 winetricks publishes**. Only the 32-bit `d3dx9_*.dll` are extracted into the
+prefix's `syswow64` and loaded first (`WINEDLLOVERRIDES=d3dx9_…=n,b`); Wine's stay as
+the fallback. ⌥ menu → **DirectX 9 helpers**, or `osxeqemu d3dx9 install|builtin`.
+
+Renderer setting: ⌥ menu → **Graphics**, or `osxeqemu renderer auto|gl|vulkan`. It is written to
 the prefix's `HKCU\Software\Wine\Direct3D\renderer` before the game starts.
 `packaging/build-app.sh` says which renderers the app it built has.
 
@@ -141,6 +154,8 @@ diagnostics zip). When the client crashes, `engine/osxeqemu crash` (and `crash.t
 the diagnostics zip) names the dll the crash happened in: the app runs Wine with
 `+loaddll`, which logs every dll's load address.
 
+- **Invisible characters, "underwater" world** → ⌥ menu → **DirectX 9 helpers**:
+  Microsoft's (see [D3DX9](#d3dx9-microsofts-not-wines)).
 - **Black, white or flickering screen** → ⌥ menu → **Graphics**: switch between OpenGL
   and Vulkan. Then send a diagnostics zip.
 - **"Connecting…" forever / no server list** → check the login server (⌥ menu); most
@@ -187,7 +202,7 @@ packaging/build-app.sh        # -> dist/osxEQEmu.app
 packaging/build-dmg.sh        # -> dist/osxEQEmu-<ver>.dmg
 
 # No time for step 1? build-app.sh falls back to an installed osxEQL-Buddy /
-# osxEQL-Companion / osxEQL runtime: the app then draws with Vulkan only.
+# osxEQL-Companion / osxEQL runtime (it has OpenGL too).
 
 # 3. (Optional) Developer ID signing — secrets stay local, never in the repo:
 export CODESIGN_IDENTITY="Developer ID Application: ..."

@@ -9,7 +9,7 @@
 #     WINE_SRC defaults to ~/Library/Application Support/osxEQEmu/Wine, then to the
 #     self-built ~/…/osxEQL/Wine.cxbuild-style trees, then to an installed osxEQL-family
 #     app's runtime. Best: a runtime from engine/build-wine.sh (has OpenGL). The osxEQL
-#     release runtimes have no OpenGL: the app then draws with Vulkan/MoltenVK.
+#     release runtimes have OpenGL too (opengl32.so), which is what RoF2 uses.
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 REPO="$(cd "$HERE/.." && pwd)"

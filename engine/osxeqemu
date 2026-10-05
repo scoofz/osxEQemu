@@ -21,6 +21,10 @@ osxeqemu — the EverQuest RoF2 client on EQEmu servers, on macOS (Wine, open so
                                How wined3d draws RoF2's Direct3D 9: gl = OpenGL (needs
                                a runtime built --with-opengl), vulkan = MoltenVK,
                                auto = OpenGL when available (default).
+  osxeqemu d3dx9 [install|native|builtin]
+                               DirectX 9 helper library: native = Microsoft's (download
+                               from Microsoft, SHA-256 checked; fixes invisible characters
+                               and the "underwater" look), builtin = Wine's.
   osxeqemu res [max|auto|WxH]  Game window size (no arg: show). max = exact display
                                size (default; fullscreen works), auto = display minus
                                menu/title bar (windowed only), WxH = pin.
@@ -97,6 +101,21 @@ cmd_renderer() {
     esac
 }
 
+cmd_d3dx9() {
+    case "${1:-}" in
+        "")       echo "d3dx9: $(d3dx9_mode)   Microsoft dlls installed: $(d3dx9_installed && tr '\n' ' ' < "$D3DX9_STAMP" || echo no)" ;;
+        install|native)
+                  need_prefix
+                  d3dx9_set native
+                  d3dx9_installed && [ "$1" = native ] && { echo "d3dx9: native (already installed)"; return 0; }
+                  log "downloading Microsoft's DirectX June 2010 package (95 MB) + extracting d3dx9…"
+                  d3dx9_install /dev/stderr || die "d3dx9 install failed"
+                  log "d3dx9: Microsoft's, $(wc -l < "$D3DX9_STAMP" | tr -d ' ') dlls" ;;
+        builtin)  d3dx9_set builtin; echo "d3dx9: Wine's builtin (takes effect next launch)" ;;
+        *)        die "usage: osxeqemu d3dx9 [install|native|builtin]" ;;
+    esac
+}
+
 cmd_res() {
     local f="$OSXEQL_HOME/resolution" cur
     if [ $# -eq 0 ]; then
@@ -113,7 +132,7 @@ cmd_res() {
 }
 
 cmd_play() {
-    local launchlog
+    local launchlog d
     need_prefix
     have_client || die "no client — run: osxeqemu client /path/to/RoF2"
     launchlog="$LOGDIR/launch-$(date +%Y%m%d-%H%M%S).log"
@@ -123,6 +142,7 @@ cmd_play() {
     log "log: $launchlog"
     caffeinate -dimsu -w $$ &
     echo "$launchlog" > "$LOGDIR/.last-cli-launch"
+    d="$(d3dx9_overrides)"; [ -n "$d" ] && export WINEDLLOVERRIDES="${WINEDLLOVERRIDES:-mscoree,mshtml=};$d"
     WINEDEBUG="fixme-all,+loaddll" exec "$WINE" explorer "/desktop=$EQEMU_DESKTOP,${OSXEQL_W}x${OSXEQL_H}" "$EQEMU_EXE_WIN" patchme >>"$launchlog" 2>&1
 }
 
@@ -133,6 +153,7 @@ cmd_status() {
     echo "client:   $(client_ok "$d" && echo "$d ($(client_kind "$d"))" || echo 'none')"
     echo "login:    $(login_server)"
     echo "renderer: $(renderer_setting) -> $(renderer_label "$(renderer_effective)")  (runtime OpenGL: $(runtime_has_gl && echo yes || echo no))"
+    echo "d3dx9:    $(d3dx9_mode)$(d3dx9_installed && echo ' (Microsoft dlls installed)')"
     echo "audio:    $(overlay_marker_ok "$WINE_DIR/lib/wine/x86_64-unix/winecoreaudio.so" osxeql-audiofix && echo 'follows the macOS default output' || echo 'stock, pinned to one device (osxeqemu audiofix)')"
 }
 
@@ -152,6 +173,7 @@ case "${1:-}" in
     client)        shift; cmd_client "$@" ;;
     login)         shift; cmd_login "$@" ;;
     renderer)      shift; cmd_renderer "$@" ;;
+    d3dx9)         shift; cmd_d3dx9 "$@" ;;
     res)           shift; cmd_res "$@" ;;
     play)          cmd_play ;;
     audiofix)      shift; bash "$HERE/audiofix.sh" "$@" ;;

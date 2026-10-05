@@ -38,6 +38,14 @@ successors). You supply your own copy; osxEQEmu only copies it into its own data
 of, or circumvent any protection on the client; it only edits the client's own text
 settings (`eqhost.txt`, `eqclient.ini`), keeping backups.
 
+## Microsoft DirectX 9 helper library (D3DX9) — NOT included, Microsoft's
+
+On the player's request, osxEQEmu downloads Microsoft's *DirectX End-User Runtimes
+(June 2010)* redistributable from download.microsoft.com (or the mirrors winetricks
+lists), verifies its SHA-256, and copies the 32-bit `d3dx9_*.dll` from it into the
+player's own Wine prefix. Nothing from it is in this repository or in the app. Use is
+governed by Microsoft's license for that package.
+
 ## EQEmu — GPL-3.0, NOT included
 
 The servers you play on run EQEmu (https://github.com/EQEmu/EQEmu). No EQEmu code is
