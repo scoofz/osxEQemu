@@ -30,6 +30,9 @@ osxeqemu — the EverQuest RoF2 client on EQEmu servers, on macOS (Wine, open so
                                output (headphones die -> speakers) without a restart.
   osxeqemu logs [archive [MB]] EverQuest's own logs and their sizes; archive = move
                                those over MB (default: all) to Logs/archive/.
+  osxeqemu crash [LOG]         The client's last crash: which dll it happened in
+                               (from Logs/dbg.txt + the launch's Wine log; default:
+                               the app's app-launch.log)
   osxeqemu status              Show what's set up
   osxeqemu doctor              Sanity-check the runtime
 
@@ -119,7 +122,8 @@ cmd_play() {
     log "client: $(client_dir)  login: $(login_server)  renderer: $(renderer_effective)  window: ${OSXEQL_W}x${OSXEQL_H}"
     log "log: $launchlog"
     caffeinate -dimsu -w $$ &
-    exec "$WINE" explorer "/desktop=$EQEMU_DESKTOP,${OSXEQL_W}x${OSXEQL_H}" "$EQEMU_EXE_WIN" patchme >>"$launchlog" 2>&1
+    echo "$launchlog" > "$LOGDIR/.last-cli-launch"
+    WINEDEBUG="fixme-all,+loaddll" exec "$WINE" explorer "/desktop=$EQEMU_DESKTOP,${OSXEQL_W}x${OSXEQL_H}" "$EQEMU_EXE_WIN" patchme >>"$launchlog" 2>&1
 }
 
 cmd_status() {
@@ -160,6 +164,7 @@ case "${1:-}" in
                      log "archived ${moved:-0} MB to $(gamelog_dir)/archive" ;;
             *)       die "usage: osxeqemu logs [archive [MB]]" ;;
         esac ;;
+    crash)         shift; crash_report "$@" ;;
     status)        cmd_status ;;
     doctor)        cmd_doctor ;;
     ""|-h|--help)  usage ;;

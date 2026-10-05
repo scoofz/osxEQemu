@@ -32,7 +32,10 @@ export WINESERVER="$WINE_DIR/bin/wineserver"
 WINESERVER="$WINE_DIR/bin/wineserver"
 export WINEDLLPATH="$WINE_DIR/lib/wine/x86_64-windows:$WINE_DIR/lib/wine/i386-windows"
 # fixme-all (not -all): keep err:-class lines in app-launch.log for bug reports.
-export WINEDEBUG="fixme-all"
+# +loaddll: one line per dll with its load address, so a crash address in the
+# client's dbg.txt can be pinned to a dll (crash_report in eqemu.sh). A few hundred
+# lines per launch.
+export WINEDEBUG="fixme-all,+loaddll"
 export WINEDLLOVERRIDES="mscoree,mshtml="
 export DYLD_FALLBACK_LIBRARY_PATH="$WINE_DIR/lib:${DYLD_FALLBACK_LIBRARY_PATH:-}"
 # Vulkan: the bundled MoltenVK via the bundled ICD json (wined3d's Vulkan renderer).
@@ -232,6 +235,7 @@ collect_diagnostics(){
         cp "$dir/eqhost.txt" "$tmp/" 2>/dev/null
         cp "$dir/eqclient.ini" "$tmp/" 2>/dev/null
         cp "$dir/Logs/dbg.txt" "$tmp/dbg.txt" 2>/dev/null
+        crash_report > "$tmp/crash.txt" 2>&1
     fi
     if /usr/bin/ditto -c -k --keepParent "$tmp" "$out"; then
         open -R "$out"

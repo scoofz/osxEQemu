@@ -296,3 +296,37 @@ eqemu_prepare_launch() {
     echo "client: $dir ($(client_kind "$dir"))  login: $(login_server)  window: ${OSXEQL_W}x${OSXEQL_H}" >>"$log"
     cd "$dir"
 }
+
+# ---- crash report ------------------------------------------------------------
+# The client writes its crash dumps to <client>/Logs/dbg.txt ("fatal error … ADDR=0x…"),
+# but an address alone doesn't say WHICH dll crashed. The app runs Wine with
+# +loaddll, so its log lists every dll with its load address ("Loaded L"…" at
+# 79A40000: builtin"): the crash address falls in the closest module loaded below it.
+# $1 = the Wine log of that launch (default: the app's app-launch.log).
+crash_report() {
+    local dbg log line addr l mod base best=0 bestmod=""
+    dbg="$(client_dir)/Logs/dbg.txt"
+    log="${1:-$OSXEQL_HOME/logs/app-launch.log}"
+    [ -f "$dbg" ] || { echo "no crash log ($dbg)"; return 1; }
+    line="$(grep -a 'fatal error' "$dbg" | tail -1)"
+    [ -n "$line" ] || { echo "no crash recorded in $dbg"; return 0; }
+    echo "last crash: ${line#*]}"
+    addr="$(printf '%s' "$line" | sed -n 's/.*ADDR=0x\([0-9A-Fa-f]*\).*/\1/p')"
+    if [ -n "$addr" ] && [ -f "$log" ]; then
+        while IFS= read -r l; do
+            mod="${l#*Loaded L\"}"; mod="${mod%%\" at *}"
+            base="${l##*\" at }"; base="${base%%:*}"
+            case "$base" in ""|*[!0-9A-Fa-f]*) continue ;; esac
+            if [ $((16#$base)) -le $((16#$addr)) ] && [ $((16#$base)) -gt "$best" ]; then
+                best=$((16#$base)); bestmod="$mod"
+            fi
+        done < <(grep -a 'trace:loaddll' "$log" | grep -a 'Loaded L"')
+    fi
+    if [ -n "$bestmod" ]; then
+        printf 'crash address 0x%s = %s + 0x%x\n' "$addr" "${bestmod//\\\\/\\}" $(( 16#$addr - best ))
+    else
+        echo "crash address 0x${addr:-?}: module unknown (no dll load lines in $log — needs osxEQEmu 0.1.2+, then crash once more)"
+    fi
+    echo "--- dbg.txt around the crash (hex dump lines left out)"
+    grep -a -v -E '[0-9a-fA-F]{8} ([0-9a-fA-F]{2} ){8} ' "$dbg" | tail -40
+}

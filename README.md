@@ -137,7 +137,9 @@ All in `~/Library/Application Support/osxEQEmu/logs/`:
 | `launch-*.log` | launches from `osxeqemu play` |
 
 The client's own debug log is `Logs/dbg.txt` in the client folder (also in the
-diagnostics zip).
+diagnostics zip). When the client crashes, `engine/osxeqemu crash` (and `crash.txt` in
+the diagnostics zip) names the dll the crash happened in: the app runs Wine with
+`+loaddll`, which logs every dll's load address.
 
 - **Black, white or flickering screen** → ⌥ menu → **Graphics**: switch between OpenGL
   and Vulkan. Then send a diagnostics zip.
