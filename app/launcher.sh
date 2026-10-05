@@ -200,10 +200,35 @@ OSA
     esac
     return 0
 }
+# From the ⌥ menu: Microsoft's <-> Wine's. Choosing Microsoft's installs it right
+# away (with the setup window) instead of waiting for Play, and says how it went.
+d3dx9_menu_choose(){
+    local btn
+    if [ "$(d3dx9_mode)" = native ] && d3dx9_installed; then
+        # (apostrophes stay inside a quoted heredoc: inside "$( … )" strings, bash 3.2
+        # has been known to trip over them)
+        btn=$(osa <<'OSA'
+return button returned of (display dialog "The game uses Microsoft's DirectX 9 helpers (D3DX9). Switch back to Wine's own?" with title "osxEQEmu" buttons {"Cancel", "Reinstall Microsoft's", "Use Wine's"} default button "Cancel")
+OSA
+)
+        case "$btn" in
+            "Use Wine's") d3dx9_set builtin ;;
+            "Reinstall Microsoft's") rm -f "$D3DX9_STAMP"; d3dx9_ensure ;;
+        esac
+        return 0
+    fi
+    d3dx9_set native
+    d3dx9_ensure
+    d3dx9_installed && osa <<'OSA'
+display alert "osxEQEmu" message "Microsoft's DirectX 9 helpers are installed. Press Play to start the game with them."
+OSA
+    return 0
+}
 d3dx9_ensure(){
     [ "$(d3dx9_mode)" = unset ] && d3dx9_offer
     [ "$(d3dx9_mode)" = native ] || return 0
     d3dx9_installed && return 0
+    [ -f "$WINEPREFIX/system.reg" ] || eqemu_ensure_prefix "$SETUP_LOG" || return 0
     start_progress_window
     progress PHASE "Downloading Microsoft's DirectX 9 helpers (95 MB)"
     progress INDET
@@ -359,8 +384,7 @@ settings_menu(){
             "Login server"*) choose_login ;;
             "Client:"*)      choose_client ;;
             Graphics*)       renderer_cycle ;;
-            "DirectX 9 helpers"*)
-                if [ "$(d3dx9_mode)" = native ] && d3dx9_installed; then d3dx9_set builtin; else d3dx9_set native; fi ;;
+            "DirectX 9 helpers"*) d3dx9_menu_choose ;;
             "Archive game logs"*) archive_game_logs_dialog 1 ;;   # every log over 1 MB
             Warn*)           _toggle log-check ;;
             Collect*)        collect_diagnostics ;;
