@@ -395,8 +395,19 @@ vram_apply() {
 # 2026-10). So at each launch: a copy of the json with the flag false and an absolute
 # library_path, in the data folder, and the loader pointed at it. With the winedebug
 # file present, the loader explains itself too (VK_LOADER_DEBUG).
+# Another Vulkan driver instead of the bundled MoltenVK, for experiments: the file
+# vulkan-icd in the data folder holds the path of that driver's ICD json (e.g.
+# KosmicKrisp from LunarG's Vulkan SDK — DXVK needs geometryShader, which MoltenVK
+# can't offer). The driver's dylib must contain x86_64 (Wine runs under Rosetta).
+EQEMU_VULKAN_ICD_FILE="$OSXEQL_HOME/vulkan-icd"
 eqemu_vulkan_env() {
-    local src="$WINE_DIR/lib/MoltenVK_icd.json" icd="$OSXEQL_HOME/MoltenVK_icd.json"
+    local src="$WINE_DIR/lib/MoltenVK_icd.json" icd="$OSXEQL_HOME/MoltenVK_icd.json" other=""
+    [ -f "$EQEMU_VULKAN_ICD_FILE" ] && other="$(head -1 "$EQEMU_VULKAN_ICD_FILE")"
+    if [ -n "$other" ] && [ -f "$other" ]; then
+        export VK_DRIVER_FILES="$other" VK_ICD_FILENAMES="$other"
+        [ -s "$OSXEQL_HOME/winedebug" ] && export VK_LOADER_DEBUG="${VK_LOADER_DEBUG:-error,warn,driver}"
+        return 0
+    fi
     [ -f "$src" ] || return 0
     if ! sed -e 's|"is_portability_driver"[[:space:]]*:[[:space:]]*true|"is_portability_driver": false|' \
              -e "s|\"library_path\"[[:space:]]*:[[:space:]]*\"[^\"]*\"|\"library_path\": \"$WINE_DIR/lib/libMoltenVK.dylib\"|" \

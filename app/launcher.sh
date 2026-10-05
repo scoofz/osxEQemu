@@ -327,6 +327,7 @@ collect_diagnostics(){
         echo "renderer: setting $(renderer_setting), effective $(renderer_effective), runtime OpenGL: $(runtime_has_gl && echo yes || echo no)"
         echo "msync: $(eqemu_msync)  VideoMemorySize: $(eqemu_vram_mb) MB  DXVK: $(dxvk_installed && dxvk_version || echo 'not installed')"
         echo "extra Wine log channels (winedebug file): $(cat "$OSXEQL_HOME/winedebug" 2>/dev/null || echo none)"
+        echo "Vulkan driver: ${VK_DRIVER_FILES:-none}"
         echo "d3dx9: $(d3dx9_mode), Microsoft dlls installed: $(d3dx9_installed && tr '\n' ' ' < "$D3DX9_STAMP" || echo no)"
         for f in resolution log-check log-threshold-mb; do
             echo "$f: $(cat "$OSXEQL_HOME/$f" 2>/dev/null || echo '(default)')"
