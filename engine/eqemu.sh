@@ -282,6 +282,43 @@ d3dx9_install() {
     rm -f "$D3DX9_STAMP.new"; echo "d3dx9: extraction found no d3dx9_30.dll" >>"$log"; return 1
 }
 
+# ---- performance ------------------------------------------------------------------
+# msync: CrossOver's Mach-semaphore synchronization for Wine on macOS (WINEMSYNC=1),
+#   much cheaper than going through wineserver for every wait/signal. The wineserver
+#   refuses clients whose msync setting differs from its own, so it must be set
+#   before the FIRST wine command of a session: the launcher calls eqemu_sync_env
+#   right after sourcing this file, the CLI likewise. Setting file msync: on|off
+#   (default on). A runtime without msync just ignores the variable.
+# VideoMemorySize: the video memory wined3d reports to the game. Left alone, wined3d
+#   guesses from the OpenGL renderer string and may report too little for an Apple
+#   GPU, and EQ then keeps swapping textures. 2048 MB by default — a 32-bit 2013
+#   client can misbehave when told more. Setting file vram-mb: a number, or absent.
+EQEMU_MSYNC_FILE="$OSXEQL_HOME/msync"
+EQEMU_VRAM_FILE="$OSXEQL_HOME/vram-mb"
+
+eqemu_msync() {
+    local v=""
+    [ -f "$EQEMU_MSYNC_FILE" ] && v="$(tr -cd 'a-z' < "$EQEMU_MSYNC_FILE")"
+    [ "$v" = off ] && echo off || echo on
+}
+eqemu_sync_env() {
+    if [ "$(eqemu_msync)" = on ]; then export WINEMSYNC=1; else unset WINEMSYNC; fi
+}
+eqemu_vram_mb() {
+    local v=""
+    [ -f "$EQEMU_VRAM_FILE" ] && v="$(tr -cd '0-9' < "$EQEMU_VRAM_FILE")"
+    echo "${v:-2048}"
+}
+# Same pattern as renderer_apply: one wine call, only when the value changed.
+vram_apply() {
+    local log="${1:-/dev/null}" v stamp="$WINEPREFIX/.osxeqemu-vram"
+    v="$(eqemu_vram_mb)"
+    [ "$(cat "$stamp" 2>/dev/null)" = "$v" ] && return 0
+    "$WINE" reg add 'HKCU\Software\Wine\Direct3D' /v VideoMemorySize /t REG_SZ /d "$v" /f >>"$log" 2>&1 \
+        && printf '%s\n' "$v" > "$stamp"
+    echo "VideoMemorySize: $v MB" >>"$log"
+}
+
 # ---- eqclient.ini: match the Wine virtual desktop -------------------------------
 # Pins the size keys that exist (Width/Height/WindowedWidth/WindowedHeight) to the
 # desktop size. At the exact display size the player's fullscreen/windowed choice is
@@ -377,6 +414,8 @@ eqemu_prepare_launch() {
     eqhost_set "$dir" "$(login_server)"
     eqclient_pin "$dir" "$OSXEQL_W" "$OSXEQL_H" "$OSXEQL_FULLDISPLAY"
     renderer_apply "$log"
+    vram_apply "$log"
+    echo "msync: $(eqemu_msync) (WINEMSYNC=${WINEMSYNC:-unset})  VideoMemorySize: $(eqemu_vram_mb) MB" >>"$log"
     EQEMU_EXE_WIN="$(win_path "$dir")\\eqgame.exe"
     echo "client: $dir ($(client_kind "$dir"))  login: $(login_server)  window: ${OSXEQL_W}x${OSXEQL_H}  d3dx9: $(d3dx9_mode)$(d3dx9_installed && echo ' (Microsoft dlls installed)')" >>"$log"
     cd "$dir"

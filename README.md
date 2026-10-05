@@ -116,6 +116,21 @@ Renderer setting: ⌥ menu → **Graphics**, or `osxeqemu renderer auto|gl|vulka
 the prefix's `HKCU\Software\Wine\Direct3D\renderer` before the game starts.
 `packaging/build-app.sh` says which renderers the app it built has.
 
+## Performance
+
+RoF2's frames go through several layers here: Direct3D 9 → wined3d → macOS OpenGL (itself
+on Metal), in a 32-bit process under Rosetta 2. Expect it to be heavier than the
+game's 2013 age suggests. What the app sets for you:
+
+- **msync** (`WINEMSYNC=1`, CrossOver's Mach-semaphore synchronization for macOS) —
+  on by default; ⌥ menu → **Fast sync**, or `osxeqemu msync on|off`.
+- **Video memory reported to the game**: 2048 MB (`VideoMemorySize`; wined3d's own
+  guess for an Apple GPU can be too low and makes EQ keep swapping textures) —
+  `osxeqemu vram MB|default`.
+
+What helps most in game (Alt+O → Display): a shorter **clip plane**, fewer
+**particles**, **shadows** and **water reflections** off.
+
 ## Command line
 
 Everything the app does is also in `engine/osxeqemu` (same settings files):

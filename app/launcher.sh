@@ -55,6 +55,7 @@ if [ ! -x "$WINE" ] || [ ! -f "$RES/eqemu.sh" ]; then
     exit 1
 fi
 . "$RES/eqemu.sh"
+eqemu_sync_env   # before ANY wine command: wineserver and game must agree on msync
 
 # ---- window size: same rules as engine/lib.sh resolve_size -----------------
 resolve_size(){
@@ -299,6 +300,7 @@ collect_diagnostics(){
         echo "client: ${dir:-none} ($( [ -n "$dir" ] && client_kind "$dir"))"
         echo "login server: $(login_server)"
         echo "renderer: setting $(renderer_setting), effective $(renderer_effective), runtime OpenGL: $(runtime_has_gl && echo yes || echo no)"
+        echo "msync: $(eqemu_msync)  VideoMemorySize: $(eqemu_vram_mb) MB"
         echo "d3dx9: $(d3dx9_mode), Microsoft dlls installed: $(d3dx9_installed && tr '\n' ' ' < "$D3DX9_STAMP" || echo no)"
         for f in resolution log-check log-threshold-mb; do
             echo "$f: $(cat "$OSXEQL_HOME/$f" 2>/dev/null || echo '(default)')"
@@ -372,6 +374,7 @@ settings_menu(){
             "Login server: $(login_server)"
             "Client: ${dir:-none} — change…"
             "$(renderer_menu_label)"
+            "Fast sync (msync — try OFF if the game misbehaves): $(_onoff "$(eqemu_msync)")"
             "DirectX 9 helpers (D3DX9): $(d3dx9_menu_label)"
             "Archive game logs (largest: ${largest:-0} MB)"
             "Warn me when a game log is over $(gamelog_threshold_mb) MB: $(_onoff "$(_flag log-check on)")"
@@ -387,6 +390,8 @@ settings_menu(){
             "Login server"*) choose_login ;;
             "Client:"*)      choose_client ;;
             Graphics*)       renderer_cycle ;;
+            "Fast sync"*)    if [ "$(eqemu_msync)" = on ]; then echo off > "$EQEMU_MSYNC_FILE"; else echo on > "$EQEMU_MSYNC_FILE"; fi
+                             eqemu_sync_env ;;
             "DirectX 9 helpers"*) d3dx9_menu_choose ;;
             "Archive game logs"*) archive_game_logs_dialog 1 ;;   # every log over 1 MB
             Warn*)           _toggle log-check ;;

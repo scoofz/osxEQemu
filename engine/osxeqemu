@@ -3,6 +3,7 @@
 # Same settings files as the app (~/Library/Application Support/osxEQEmu).
 HERE="$(cd "$(dirname "$0")" && pwd)"
 . "$HERE/lib.sh"; . "$HERE/eqemu.sh"
+eqemu_sync_env   # before any wine command (see eqemu.sh "performance")
 
 usage() {
     cat <<EOF
@@ -25,6 +26,8 @@ osxeqemu — the EverQuest RoF2 client on EQEmu servers, on macOS (Wine, open so
                                DirectX 9 helper library: native = Microsoft's (download
                                from Microsoft, SHA-256 checked; fixes invisible characters
                                and the "underwater" look), builtin = Wine's.
+  osxeqemu msync [on|off]      Fast synchronization (WINEMSYNC). Default on.
+  osxeqemu vram [MB|default]   Video memory Wine reports to the game (default 2048).
   osxeqemu res [max|auto|WxH]  Game window size (no arg: show). max = exact display
                                size (default; fullscreen works), auto = display minus
                                menu/title bar (windowed only), WxH = pin.
@@ -153,6 +156,7 @@ cmd_status() {
     echo "client:   $(client_ok "$d" && echo "$d ($(client_kind "$d"))" || echo 'none')"
     echo "login:    $(login_server)"
     echo "renderer: $(renderer_setting) -> $(renderer_label "$(renderer_effective)")  (runtime OpenGL: $(runtime_has_gl && echo yes || echo no))"
+    echo "perf:     msync $(eqemu_msync), VideoMemorySize $(eqemu_vram_mb) MB"
     echo "d3dx9:    $(d3dx9_mode)$(d3dx9_installed && echo ' (Microsoft dlls installed)')"
     echo "audio:    $(overlay_marker_ok "$WINE_DIR/lib/wine/x86_64-unix/winecoreaudio.so" osxeql-audiofix && echo 'follows the macOS default output' || echo 'stock, pinned to one device (osxeqemu audiofix)')"
 }
@@ -174,6 +178,19 @@ case "${1:-}" in
     login)         shift; cmd_login "$@" ;;
     renderer)      shift; cmd_renderer "$@" ;;
     d3dx9)         shift; cmd_d3dx9 "$@" ;;
+    msync)         shift
+                   case "${1:-}" in
+                       on|off) echo "$1" > "$EQEMU_MSYNC_FILE"; echo "msync: $1 (next launch)" ;;
+                       "")     echo "msync: $(eqemu_msync)" ;;
+                       *)      die "usage: osxeqemu msync [on|off]" ;;
+                   esac ;;
+    vram)          shift
+                   case "${1:-}" in
+                       default) rm -f "$EQEMU_VRAM_FILE"; echo "VideoMemorySize: $(eqemu_vram_mb) MB (default)" ;;
+                       [0-9]*)  echo "$1" | tr -cd '0-9' > "$EQEMU_VRAM_FILE"; echo "VideoMemorySize: $(eqemu_vram_mb) MB (next launch)" ;;
+                       "")      echo "VideoMemorySize: $(eqemu_vram_mb) MB" ;;
+                       *)       die "usage: osxeqemu vram [MB|default]" ;;
+                   esac ;;
     res)           shift; cmd_res "$@" ;;
     play)          cmd_play ;;
     audiofix)      shift; bash "$HERE/audiofix.sh" "$@" ;;
