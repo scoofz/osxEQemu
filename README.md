@@ -22,7 +22,7 @@ client EQEmu servers use: **Rain of Fear 2 (RoF2)**.
 > client files belong to Daybreak Game Company and are **not included**.
 
 > [!WARNING]
-> **First release (0.1.0), not yet played on a real Mac.** The setup and launch
+> **First release (0.1.x), not yet played on a real Mac.** The setup and launch
 > plumbing is tested, but how well RoF2 renders under this Wine (OpenGL or Vulkan, see
 > [Graphics](#graphics-how-rof2s-direct3d-9-reaches-the-screen)) is exactly what the
 > first players will find out. Reports — with a **Collect diagnostics** zip — welcome.
@@ -49,7 +49,7 @@ folder** (the one containing `eqgame.exe`; your server's website says where to g
      folder is never touched;
    - **Use where it is** — no extra disk space, but the app edits `eqhost.txt` and
      `eqclient.ini` in your folder, and the folder must stay where it is.
-4. **Login server:** keep the public **`login.eqemulator.net:5998`** (it lists ProjectEQ
+4. **Login server:** keep the public **`login.eqemulator.net`** (port 5999 for RoF2 — the app picks it; it lists ProjectEQ
    and most EQEmu servers) or type the one your server gives you.
 5. EverQuest starts. Log in, pick your server, play. From then on, the app goes straight
    to the game.
@@ -111,7 +111,7 @@ Everything the app does is also in `engine/osxeqemu` (same settings files):
 engine/osxeqemu status                   # runtime, prefix, client (+ build), login, renderer
 engine/osxeqemu setup                    # check the runtime + create the prefix
 engine/osxeqemu client ~/Games/RoF2      # copy a client in (or: --in-place)
-engine/osxeqemu login my.server.net      # login server (port 5998 if omitted); `default` resets
+engine/osxeqemu login my.server.net      # login server (port: 5999 for RoF2, 5998 Titanium); `default` resets
 engine/osxeqemu renderer [auto|gl|vulkan]
 engine/osxeqemu res [max|auto|WxH]       # game window size (default: max = exact display)
 engine/osxeqemu play                     # eqgame.exe patchme, in the display-sized desktop
@@ -142,7 +142,8 @@ diagnostics zip).
 - **Black, white or flickering screen** → ⌥ menu → **Graphics**: switch between OpenGL
   and Vulkan. Then send a diagnostics zip.
 - **"Connecting…" forever / no server list** → check the login server (⌥ menu); most
-  servers use `login.eqemulator.net:5998`. Some servers need an account created on their
+  servers use `login.eqemulator.net:5999` with RoF2 (5998 is for the Titanium client only —
+  RoF2 on 5998 hangs at "Logging in to the server"). Some servers need an account created on their
   website first.
 - **Mouse offset / small picture** → `osxeqemu res max` (the default), relaunch. Don't
   resize the window mid-game.

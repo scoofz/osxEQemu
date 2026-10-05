@@ -35,7 +35,7 @@ osxEQEmu — the EverQuest RoF2 client on EQEmu servers, on Apple Silicon
 3. On first launch, choose the folder of your own RoF2 (Rain of Fear 2) client —
    the one with eqgame.exe. The client is NOT included: your server's website
    says where to get it. osxEQEmu copies it (or uses it in place), points
-   eqhost.txt at the login server (default: login.eqemulator.net:5998, which
+   eqhost.txt at the login server (default: login.eqemulator.net:5999, which
    lists ProjectEQ and most EQEmu servers) and starts EverQuest.
 4. Settings & troubleshooting: hold the Option (⌥) key while opening the app —
    login server, client folder, graphics (OpenGL / Vulkan), log archiving, and
@@ -59,7 +59,7 @@ osxEQEmu — the EverQuest RoF2 client on EQEmu servers, on Apple Silicon
 3. On first launch, choose the folder of your own RoF2 (Rain of Fear 2) client —
    the one with eqgame.exe. The client is NOT included: your server's website
    says where to get it. osxEQEmu copies it (or uses it in place), points
-   eqhost.txt at the login server (default: login.eqemulator.net:5998, which
+   eqhost.txt at the login server (default: login.eqemulator.net:5999, which
    lists ProjectEQ and most EQEmu servers) and starts EverQuest.
 4. Settings & troubleshooting: hold the Option (⌥) key while opening the app —
    login server, client folder, graphics (OpenGL / Vulkan), log archiving, and

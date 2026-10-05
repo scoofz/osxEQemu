@@ -167,11 +167,11 @@ OSA
 choose_login(){
     local cur r btn text h
     cur="$(login_server)"
-    r="$(osa -e "set r to display dialog \"Login server (host:port).\n\nMost EQEmu servers — ProjectEQ included — are listed on the public EQEmu login server: $EQEMU_DEFAULT_LOGIN. Use another one only if your server's website says so.\" default answer \"$cur\" with title \"$APP_NAME\" buttons {\"Cancel\", \"Public EQEmu login\", \"Save\"} default button \"Save\"
+    r="$(osa -e "set r to display dialog \"Login server (host:port).\n\nMost EQEmu servers — ProjectEQ included — are listed on the public EQEmu login server: $(login_default) (port 5999 for RoF2, 5998 for Titanium). Use another one only if your server's website says so.\" default answer \"$cur\" with title \"$APP_NAME\" buttons {\"Cancel\", \"Public EQEmu login\", \"Save\"} default button \"Save\"
 return (button returned of r) & \"|\" & (text returned of r)")"
     btn="${r%%|*}"; text="${r#*|}"
     case "$btn" in
-        "Public EQEmu login") login_set "$EQEMU_DEFAULT_LOGIN" ;;
+        "Public EQEmu login") login_set "$(login_default)" ;;
         Save)
             if h="$(login_normalize "$text")"; then login_set "$h"
             else alert "\\\"$text\\\" isn't a valid server address (host or host:port)."; fi ;;
@@ -319,7 +319,7 @@ if ! have_client; then
     : > "$SETUP_LOG"
     if ! choose_client first; then progress QUIT; exit 0; fi
     choose_login
-    [ -f "$EQEMU_LOGIN_FILE" ] || login_set "$EQEMU_DEFAULT_LOGIN"
+    [ -f "$EQEMU_LOGIN_FILE" ] || login_set "$(login_default)"
     progress DONE "Your client is ready — starting EverQuest"
     sleep 2
     progress QUIT

@@ -9,7 +9,10 @@
 #   client   the player's own RoF2 folder (eqgame.exe …). Not included, never
 #            downloaded: osxEQEmu copies it into the prefix, or uses it in place.
 #   login    eqhost.txt → an EQEmu login server (default: the public
-#            login.eqemulator.net:5998, which lists ProjectEQ and most servers).
+#            login.eqemulator.net, which lists ProjectEQ and most servers). The PORT
+#            depends on the client: EQEmu's login server speaks the Titanium protocol
+#            on 5998 and the SoD-and-later one (SoD, UF, RoF, RoF2) on 5999. RoF2 on
+#            5998 hangs forever at "Logging in to the server. Please wait…".
 #   renderer RoF2 is 32-bit Direct3D 9. DXMT only does D3D10/11, so D3D9 goes
 #            through Wine's wined3d: OpenGL (macOS OpenGL 4.1; needs a runtime built
 #            --with-opengl) or Vulkan via the bundled MoltenVK. auto = OpenGL when
@@ -17,7 +20,7 @@
 #   window   eqclient.ini pinned to the Wine virtual desktop (same rules as osxEQL).
 #   logs     EverQuest's own /log files, archived when huge (they cause freezes).
 
-EQEMU_DEFAULT_LOGIN="login.eqemulator.net:5998"
+EQEMU_PUBLIC_LOGIN="login.eqemulator.net"           # port: login_port
 EQEMU_CLIENT_FILE="$OSXEQL_HOME/client-dir"        # unix path of the client in use
 EQEMU_LOGIN_FILE="$OSXEQL_HOME/login-server"       # host:port
 EQEMU_RENDERER_FILE="$OSXEQL_HOME/renderer"        # auto|gl|vulkan
@@ -105,16 +108,27 @@ client_copy() {
 }
 
 # ---- login server (eqhost.txt) -------------------------------------------------
+# Login port for the client in use ($1, default: the configured one): 5998 for a
+# Titanium-era client, 5999 for everything newer (RoF2) or unknown.
+login_port() {
+    local d="${1:-$(client_dir)}"
+    case "$( client_ok "$d" && client_kind "$d")" in Titanium*) echo 5998 ;; *) echo 5999 ;; esac
+}
+login_default() { printf '%s:%s\n' "$EQEMU_PUBLIC_LOGIN" "$(login_port)"; }
+# The public login server always gets the client's port, whatever was saved (0.1.0
+# saved :5998 for every client — wrong for RoF2). Other hosts are used as given.
 login_server() {
     local h=""
     [ -f "$EQEMU_LOGIN_FILE" ] && h="$(tr -d ' \t\r\n' < "$EQEMU_LOGIN_FILE")"
-    printf '%s\n' "${h:-$EQEMU_DEFAULT_LOGIN}"
+    case "$h" in ""|"$EQEMU_PUBLIC_LOGIN"|"$EQEMU_PUBLIC_LOGIN":*) login_default; return ;; esac
+    printf '%s\n' "$h"
 }
-# "host" or "host:port" -> "host:port" (5998 = EQEmu's login port); fails on junk.
+# "host" or "host:port" -> "host:port" (no port: the client's, see login_port);
+# fails on junk.
 login_normalize() {
     local h
     h="$(printf '%s' "$1" | tr -d ' \t\r\n"')"
-    case "$h" in *:*) ;; "") return 1 ;; *) h="$h:5998" ;; esac
+    case "$h" in *:*) ;; "") return 1 ;; *) h="$h:$(login_port)" ;; esac
     printf '%s' "$h" | grep -Eq '^[A-Za-z0-9.-]+:[0-9]{1,5}$' || return 1
     printf '%s\n' "$h"
 }
