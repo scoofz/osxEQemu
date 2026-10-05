@@ -179,26 +179,92 @@ runtime_has_gl() { [ -f "$WINE_DIR/lib/wine/x86_64-unix/opengl32.so" ]; }
 renderer_setting() {
     local r=""
     [ -f "$EQEMU_RENDERER_FILE" ] && r="$(tr -cd 'a-z' < "$EQEMU_RENDERER_FILE")"
-    case "$r" in gl|vulkan) echo "$r" ;; *) echo auto ;; esac
+    case "$r" in gl|vulkan|dxvk) echo "$r" ;; *) echo auto ;; esac
 }
 renderer_effective() {
     case "$(renderer_setting)" in
         vulkan) echo vulkan ;;
+        dxvk)   if dxvk_installed; then echo dxvk; elif runtime_has_gl; then echo gl; else echo vulkan; fi ;;
         *)      runtime_has_gl && echo gl || echo vulkan ;;   # gl without OpenGL can't work
     esac
 }
 renderer_label() {
-    case "$1" in gl) echo "OpenGL" ;; vulkan) echo "Vulkan (MoltenVK, experimental)" ;; *) echo "$1" ;; esac
+    case "$1" in
+        gl)     echo "OpenGL" ;;
+        vulkan) echo "Vulkan (wined3d over MoltenVK, experimental)" ;;
+        dxvk)   echo "DXVK (experimental)" ;;
+        *)      echo "$1" ;;
+    esac
 }
 # Write HKCU\Software\Wine\Direct3D\renderer when it changed (one wine call; the
 # applied value is remembered inside the prefix, so a new prefix gets it again).
 renderer_apply() {
     local log="${1:-/dev/null}" r stamp="$WINEPREFIX/.osxeqemu-renderer"
     r="$(renderer_effective)"
+    # DXVK replaces d3d9 itself; wined3d (still used for anything else) stays on OpenGL.
+    [ "$r" = dxvk ] && { runtime_has_gl && r=gl || r=vulkan; }
     [ "$(cat "$stamp" 2>/dev/null)" = "$r" ] && return 0
     "$WINE" reg add 'HKCU\Software\Wine\Direct3D' /v renderer /t REG_SZ /d "$r" /f >>"$log" 2>&1 \
         && printf '%s\n' "$r" > "$stamp"
     echo "renderer: $r (setting $(renderer_setting), runtime OpenGL: $(runtime_has_gl && echo yes || echo no))" >>"$log"
+}
+
+# ---- DXVK (experimental): Direct3D 9 -> Vulkan -> MoltenVK -> Metal ---------------
+# wined3d (OpenGL) works but costs a lot of CPU per draw call: ~1.6 cores for 22-42 fps,
+# and shadows kill it. DXVK translates d3d9 to Vulkan far more cheaply. Its
+# prerequisite — 32-bit Vulkan through Wine reaching MoltenVK — works since 0.1.11
+# (MoltenVK 1.4.1 / Vulkan 1.4 found the GPU). Only the 32-bit d3d9.dll of the latest
+# official release (github.com/doitsujin/dxvk) is used. It goes into the CLIENT folder
+# (Wine loads a native dll from the exe's folder first, with d3d9=n,b), marked by
+# .osxeqemu-dxvk holding its SHA-256, and is removed again when another renderer is
+# chosen — only if it is still exactly ours. A client that ships its own d3d9.dll is
+# left alone. DXVK draws its fps in a corner (DXVK_HUD=fps) and logs to logs/.
+DXVK_DIR="$OSXEQL_HOME/dxvk"
+DXVK_DLL="$DXVK_DIR/d3d9.dll"
+DXVK_INFO="$DXVK_DIR/version"                    # "dxvk-X.Y.Z <sha256 of d3d9.dll>"
+DXVK_FALLBACK_URL="https://github.com/doitsujin/dxvk/releases/download/v2.6.1/dxvk-2.6.1.tar.gz"
+
+dxvk_installed() { [ -s "$DXVK_DLL" ]; }
+dxvk_version() { cut -d' ' -f1 "$DXVK_INFO" 2>/dev/null; }
+
+dxvk_install() {
+    local log="${1:-/dev/null}" url tmp f
+    url="$(curl -fsSL --connect-timeout 20 https://api.github.com/repos/doitsujin/dxvk/releases/latest 2>>"$log" \
+        | grep -o '"browser_download_url": *"[^"]*/dxvk-[0-9][0-9.]*\.tar\.gz"' | head -1 | sed 's/.*"\(https[^"]*\)"$/\1/')"
+    [ -n "$url" ] || url="$DXVK_FALLBACK_URL"
+    echo "dxvk: downloading $url" >>"$log"
+    tmp="$(mktemp -d)" || return 1
+    if ! curl -fL --retry 2 --connect-timeout 20 -o "$tmp/dxvk.tar.gz" "$url" >>"$log" 2>&1; then
+        echo "dxvk: download failed" >>"$log"; rm -rf "$tmp"; return 1
+    fi
+    ( cd "$tmp" && tar -xzf dxvk.tar.gz ) >>"$log" 2>&1
+    f="$(ls "$tmp"/dxvk-*/x32/d3d9.dll 2>/dev/null | head -1)"
+    if [ ! -f "$f" ]; then echo "dxvk: no x32/d3d9.dll in the archive" >>"$log"; rm -rf "$tmp"; return 1; fi
+    mkdir -p "$DXVK_DIR" && cp -f "$f" "$DXVK_DLL" || { rm -rf "$tmp"; return 1; }
+    printf '%s %s\n' "$(basename "$(dirname "$(dirname "$f")")")" "$(sha256_of "$DXVK_DLL")" > "$DXVK_INFO"
+    rm -rf "$tmp"
+    echo "dxvk: installed $(dxvk_version) (32-bit d3d9.dll, sha256 $(cut -d' ' -f2 "$DXVK_INFO"))" >>"$log"
+}
+
+# Put DXVK's d3d9.dll into (or take it out of) the client folder for this launch,
+# and export what it needs. $1 = client dir, $2 = log.
+dxvk_sync_client() {
+    local dir="$1" log="${2:-/dev/null}" m="$1/.osxeqemu-dxvk"
+    if [ "$(renderer_effective)" = dxvk ]; then
+        if [ -f "$dir/d3d9.dll" ] && [ ! -f "$m" ]; then
+            echo "dxvk: the client has its own d3d9.dll — not replaced, DXVK not used" >>"$log"; return 0
+        fi
+        cp -f "$DXVK_DLL" "$dir/d3d9.dll" && sha256_of "$dir/d3d9.dll" > "$m" || return 0
+        export WINEDLLOVERRIDES="${WINEDLLOVERRIDES:-mscoree,mshtml=};d3d9=n,b"
+        export DXVK_HUD="${DXVK_HUD:-fps}" DXVK_LOG_PATH="$OSXEQL_HOME/logs" DXVK_LOG_LEVEL="${DXVK_LOG_LEVEL:-info}"
+        echo "dxvk: $(dxvk_version) in the client folder (d3d9=n,b, HUD $DXVK_HUD)" >>"$log"
+    elif [ -f "$m" ]; then
+        if [ -f "$dir/d3d9.dll" ] && [ "$(sha256_of "$dir/d3d9.dll")" = "$(cat "$m")" ]; then
+            rm -f "$dir/d3d9.dll"; echo "dxvk: removed from the client folder" >>"$log"
+        fi
+        rm -f "$m"
+    fi
+    return 0
 }
 
 # ---- D3DX9: Microsoft's, not Wine's ---------------------------------------------
@@ -438,6 +504,7 @@ eqemu_prepare_launch() {
     eqclient_pin "$dir" "$OSXEQL_W" "$OSXEQL_H" "$OSXEQL_FULLDISPLAY"
     renderer_apply "$log"
     vram_apply "$log"
+    dxvk_sync_client "$dir" "$log"
     echo "msync: $(eqemu_msync) (WINEMSYNC=${WINEMSYNC:-unset})  VideoMemorySize: $(eqemu_vram_mb) MB" >>"$log"
     EQEMU_EXE_WIN="$(win_path "$dir")\\eqgame.exe"
     echo "client: $dir ($(client_kind "$dir"))  login: $(login_server)  window: ${OSXEQL_W}x${OSXEQL_H}  d3dx9: $(d3dx9_mode)$(d3dx9_installed && echo ' (Microsoft dlls installed)')" >>"$log"

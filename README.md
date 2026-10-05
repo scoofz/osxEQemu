@@ -99,6 +99,7 @@ draw through two backends:
 |---|---|---|
 | **OpenGL** | wined3d → macOS OpenGL 4.1 (deprecated by Apple, still shipped in macOS 26). CrossOver's long-standing Direct3D 9 path. | **Default.** osxEQL's runtimes have it (`opengl32.so`); `build-wine.sh` now asks for it explicitly too. |
 | **Vulkan** | wined3d's Vulkan renderer → the bundled MoltenVK → Metal. | **Experimental.** On the first Mac test it found no GPU for the 32-bit client. |
+| **DXVK** | Direct3D 9 → Vulkan (DXVK) → MoltenVK → Metal. Replaces wined3d for d3d9: much less CPU per draw call. | **Experimental** (⌥ menu → Graphics, after Vulkan). The latest official [DXVK](https://github.com/doitsujin/dxvk) release is downloaded on first use; only its 32-bit `d3d9.dll` is put into the client folder (removed again when you switch back). DXVK shows its fps in a corner and logs to `logs/`. |
 
 ### D3DX9: Microsoft's, not Wine's
 

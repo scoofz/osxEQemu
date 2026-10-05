@@ -278,16 +278,36 @@ renderer_menu_label(){
     local s; s="$(renderer_setting)"
     case "$s" in
         auto) echo "Graphics: Automatic ($(renderer_label "$(renderer_effective)"))" ;;
+        dxvk) if dxvk_installed; then echo "Graphics: DXVK (experimental, $(dxvk_version))"; else echo "Graphics: DXVK (experimental, not installed yet)"; fi ;;
         *)    echo "Graphics: $(renderer_label "$s")" ;;
     esac
 }
-# auto -> gl -> vulkan -> auto (gl skipped when the runtime has no OpenGL)
+# auto -> gl -> vulkan -> dxvk -> auto (gl skipped when the runtime has no OpenGL).
+# Landing on DXVK downloads it right away.
 renderer_cycle(){
     case "$(renderer_setting)" in
         auto)   if runtime_has_gl; then echo gl > "$EQEMU_RENDERER_FILE"; else echo vulkan > "$EQEMU_RENDERER_FILE"; fi ;;
         gl)     echo vulkan > "$EQEMU_RENDERER_FILE" ;;
-        vulkan) rm -f "$EQEMU_RENDERER_FILE" ;;
+        vulkan) echo dxvk > "$EQEMU_RENDERER_FILE"; dxvk_ensure ;;
+        dxvk)   rm -f "$EQEMU_RENDERER_FILE" ;;
     esac
+}
+dxvk_ensure(){
+    [ "$(renderer_setting)" = dxvk ] || return 0
+    dxvk_installed && return 0
+    start_progress_window
+    progress PHASE "Downloading DXVK (experimental)"
+    progress INDET
+    progress DETAIL "Latest official release from github.com/doitsujin/dxvk"
+    if dxvk_install "$SETUP_LOG"; then
+        progress DONE "DXVK $(dxvk_version) installed"
+        sleep 1
+    else
+        progress FAIL "Could not download DXVK"
+        alert "DXVK could not be downloaded (see logs/setup.log). The game uses OpenGL meanwhile."
+    fi
+    progress_close
+    return 0
 }
 
 collect_diagnostics(){
@@ -305,7 +325,7 @@ collect_diagnostics(){
         echo "client: ${dir:-none} ($( [ -n "$dir" ] && client_kind "$dir"))"
         echo "login server: $(login_server)"
         echo "renderer: setting $(renderer_setting), effective $(renderer_effective), runtime OpenGL: $(runtime_has_gl && echo yes || echo no)"
-        echo "msync: $(eqemu_msync)  VideoMemorySize: $(eqemu_vram_mb) MB"
+        echo "msync: $(eqemu_msync)  VideoMemorySize: $(eqemu_vram_mb) MB  DXVK: $(dxvk_installed && dxvk_version || echo 'not installed')"
         echo "extra Wine log channels (winedebug file): $(cat "$OSXEQL_HOME/winedebug" 2>/dev/null || echo none)"
         echo "d3dx9: $(d3dx9_mode), Microsoft dlls installed: $(d3dx9_installed && tr '\n' ' ' < "$D3DX9_STAMP" || echo no)"
         for f in resolution log-check log-threshold-mb; do
@@ -428,6 +448,7 @@ if [ ! -f "$WINEPREFIX/system.reg" ]; then
     eqemu_ensure_prefix "$SETUP_LOG" || { alert "Could not create the Wine environment. See logs/setup.log."; exit 1; }
 fi
 d3dx9_ensure
+dxvk_ensure
 check_big_game_logs
 : > "$LOG"
 _dx="$(d3dx9_overrides)"

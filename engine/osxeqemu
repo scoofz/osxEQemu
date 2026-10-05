@@ -19,7 +19,7 @@ osxeqemu — the EverQuest RoF2 client on EQEmu servers, on macOS (Wine, open so
                                Login server written to eqhost.txt at each launch
                                (default: $EQEMU_PUBLIC_LOGIN; port if omitted: 5999 for
                                RoF2 and other SoD+ clients, 5998 for Titanium).
-  osxeqemu renderer [auto|gl|vulkan]
+  osxeqemu renderer [auto|gl|vulkan|dxvk]
                                How wined3d draws RoF2's Direct3D 9: gl = OpenGL (needs
                                a runtime built --with-opengl), vulkan = MoltenVK,
                                auto = OpenGL when available (default).
@@ -105,7 +105,13 @@ cmd_renderer() {
         gl|vulkan)   echo "$1" > "$EQEMU_RENDERER_FILE"
                      [ "$1" = gl ] && ! runtime_has_gl && warn "this runtime has no OpenGL: Vulkan will be used until it is rebuilt"
                      echo "renderer: $1 (takes effect next launch)" ;;
-        *)           die "usage: osxeqemu renderer [auto|gl|vulkan]" ;;
+        dxvk)        echo dxvk > "$EQEMU_RENDERER_FILE"
+                     if ! dxvk_installed; then
+                         log "downloading DXVK (latest release, github.com/doitsujin/dxvk)…"
+                         dxvk_install /dev/stderr || die "DXVK download failed"
+                     fi
+                     echo "renderer: DXVK $(dxvk_version) (experimental; takes effect next launch)" ;;
+        *)           die "usage: osxeqemu renderer [auto|gl|vulkan|dxvk]" ;;
     esac
 }
 
