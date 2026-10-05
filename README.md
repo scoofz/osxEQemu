@@ -99,7 +99,26 @@ draw through two backends:
 |---|---|---|
 | **OpenGL** | wined3d → macOS OpenGL 4.1 (deprecated by Apple, still shipped in macOS 26). CrossOver's long-standing Direct3D 9 path. | **Default.** osxEQL's runtimes have it (`opengl32.so`); `build-wine.sh` now asks for it explicitly too. |
 | **Vulkan** | wined3d's Vulkan renderer → the bundled MoltenVK → Metal. | **Experimental.** On the first Mac test it found no GPU for the 32-bit client. |
-| **DXVK** | Direct3D 9 → Vulkan (DXVK) → MoltenVK → Metal. Replaces wined3d for d3d9: much less CPU per draw call. | **Experimental** (⌥ menu → Graphics, after Vulkan). The latest official [DXVK](https://github.com/doitsujin/dxvk) release is downloaded on first use; only its 32-bit `d3d9.dll` is put into the client folder (removed again when you switch back). DXVK shows its fps in a corner and logs to `logs/`. |
+| **DXVK** | Direct3D 9 → Vulkan (DXVK) → Vulkan driver → Metal. | **Not usable on Mac today** (see below). Kept for experiments: `osxeqemu renderer dxvk`. |
+
+### What was tried for Direct3D 9 (October 2026, M3 Max, macOS 26)
+
+RoF2's limit on this path is CPU time per draw call (wined3d + Rosetta + OpenGL), so
+every faster Direct3D 9 route was tried. For the record:
+
+| Route | Result | Why |
+|---|---|---|
+| wined3d → **OpenGL** | ✅ default | 22–42 fps in game, shadows too costly |
+| wined3d → **Vulkan** (MoltenVK) | ⚠️ starts | very slow, menus unclickable (wined3d's Vulkan backend vs MoltenVK) |
+| **DXVK** (upstream 3.x) + MoltenVK 1.4 | ❌ | "required feature 'geometryShader'" — Metal has no geometry shaders |
+| **DXVK** + KosmicKrisp (Vulkan SDK 1.4.363) | ❌ | arm64-only (Wine runs as x86_64), and `geometryShader = false` too |
+| Gcenx **DXVK-macOS** 1.10.3 | ❌ | its d3d9 also enables geometryShader + shaderCullDistance |
+| **dgVoodoo2** (d3d9 → d3d11) + **DXMT** | ❌ | device created through DXMT, then an access violation inside dgVoodoo2's d3d9.dll; closed source, Wine unsupported by its author |
+
+Making MoltenVK visible to the 32-bit client (it was hidden as a "portability driver"),
+the `vulkan-icd` and `winedebug` files, and `osxeqemu crash` / `perf` came out of these
+tests and stay useful. What could change the picture later: a native arm64 Wine (no
+Rosetta), or a Mac Vulkan driver that emulates geometry shaders.
 
 ### D3DX9: Microsoft's, not Wine's
 

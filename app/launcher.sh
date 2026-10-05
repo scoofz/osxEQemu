@@ -282,14 +282,16 @@ renderer_menu_label(){
         *)    echo "Graphics: $(renderer_label "$s")" ;;
     esac
 }
-# auto -> gl -> vulkan -> dxvk -> auto (gl skipped when the runtime has no OpenGL).
-# Landing on DXVK downloads it right away.
+# auto -> gl -> vulkan -> auto (gl skipped when the runtime has no OpenGL).
+# DXVK is NOT in this cycle: it needs geometry shaders, which no Mac Vulkan driver
+# offers (MoltenVK, KosmicKrisp — tested 2026-10), so it can't start a d3d9 device.
+# It stays reachable for experiments with `osxeqemu renderer dxvk` (+ vulkan-icd);
+# once set that way, the menu line shows it and the next click goes back to auto.
 renderer_cycle(){
     case "$(renderer_setting)" in
         auto)   if runtime_has_gl; then echo gl > "$EQEMU_RENDERER_FILE"; else echo vulkan > "$EQEMU_RENDERER_FILE"; fi ;;
         gl)     echo vulkan > "$EQEMU_RENDERER_FILE" ;;
-        vulkan) echo dxvk > "$EQEMU_RENDERER_FILE"; dxvk_ensure ;;
-        dxvk)   rm -f "$EQEMU_RENDERER_FILE" ;;
+        *)      rm -f "$EQEMU_RENDERER_FILE" ;;
     esac
 }
 dxvk_ensure(){
