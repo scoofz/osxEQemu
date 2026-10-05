@@ -319,6 +319,29 @@ vram_apply() {
     echo "VideoMemorySize: $v MB" >>"$log"
 }
 
+# ---- Vulkan: make the loader see MoltenVK ------------------------------------------
+# The runtime ships the Khronos Vulkan loader + MoltenVK + MoltenVK_icd.json (copied
+# from Homebrew by packaging/bundle-dylibs.sh). That json says "is_portability_driver":
+# true, and since loader 1.3.216 a portability driver is HIDDEN from any instance that
+# doesn't opt in with VK_KHR_portability_enumeration. Wine's 32-bit path then got no
+# driver at all: "Failed to create vulkan instance, res -9" (VK_ERROR_INCOMPATIBLE_DRIVER),
+# VK_EXT_metal_surface "not supported", not one MoltenVK log line (first Mac test,
+# 2026-10). So at each launch: a copy of the json with the flag false and an absolute
+# library_path, in the data folder, and the loader pointed at it. With the winedebug
+# file present, the loader explains itself too (VK_LOADER_DEBUG).
+eqemu_vulkan_env() {
+    local src="$WINE_DIR/lib/MoltenVK_icd.json" icd="$OSXEQL_HOME/MoltenVK_icd.json"
+    [ -f "$src" ] || return 0
+    if ! sed -e 's|"is_portability_driver"[[:space:]]*:[[:space:]]*true|"is_portability_driver": false|' \
+             -e "s|\"library_path\"[[:space:]]*:[[:space:]]*\"[^\"]*\"|\"library_path\": \"$WINE_DIR/lib/libMoltenVK.dylib\"|" \
+             "$src" > "$icd.tmp" 2>/dev/null || ! mv -f "$icd.tmp" "$icd"; then
+        rm -f "$icd.tmp"; icd="$src"
+    fi
+    export VK_DRIVER_FILES="$icd" VK_ICD_FILENAMES="$icd"
+    [ -s "$OSXEQL_HOME/winedebug" ] && export VK_LOADER_DEBUG="${VK_LOADER_DEBUG:-error,warn,driver}"
+    return 0
+}
+
 # ---- eqclient.ini: match the Wine virtual desktop -------------------------------
 # Pins the size keys that exist (Width/Height/WindowedWidth/WindowedHeight) to the
 # desktop size. At the exact display size the player's fullscreen/windowed choice is

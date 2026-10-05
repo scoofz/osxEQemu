@@ -46,11 +46,7 @@ if [ -s "$OSXEQL_HOME/winedebug" ]; then
 fi
 export WINEDLLOVERRIDES="mscoree,mshtml="
 export DYLD_FALLBACK_LIBRARY_PATH="$WINE_DIR/lib:${DYLD_FALLBACK_LIBRARY_PATH:-}"
-# Vulkan: the bundled MoltenVK via the bundled ICD json (wined3d's Vulkan renderer).
-if [ -f "$WINE_DIR/lib/MoltenVK_icd.json" ]; then
-    export VK_DRIVER_FILES="$WINE_DIR/lib/MoltenVK_icd.json"
-    export VK_ICD_FILENAMES="$VK_DRIVER_FILES"
-fi
+# Vulkan (MoltenVK) environment: eqemu_vulkan_env, right after eqemu.sh is sourced.
 # NEVER export WINELOADER — it makes wine copy the loader to a temp dir for child
 # processes which then fail "could not load ntdll.so" (osxEQL gotcha #2).
 
@@ -64,6 +60,7 @@ if [ ! -x "$WINE" ] || [ ! -f "$RES/eqemu.sh" ]; then
 fi
 . "$RES/eqemu.sh"
 eqemu_sync_env   # before ANY wine command: wineserver and game must agree on msync
+eqemu_vulkan_env # Vulkan loader -> bundled MoltenVK (see eqemu.sh)
 
 # ---- window size: same rules as engine/lib.sh resolve_size -----------------
 resolve_size(){

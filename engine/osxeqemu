@@ -4,6 +4,7 @@
 HERE="$(cd "$(dirname "$0")" && pwd)"
 . "$HERE/lib.sh"; . "$HERE/eqemu.sh"
 eqemu_sync_env   # before any wine command (see eqemu.sh "performance")
+eqemu_vulkan_env # Vulkan loader -> bundled MoltenVK
 
 usage() {
     cat <<EOF

@@ -54,10 +54,7 @@ wine_env() {
     # mscoree/mshtml disabled = no mono/gecko install nag
     export WINEDLLOVERRIDES="${WINEDLLOVERRIDES:-mscoree,mshtml=}"
     export DYLD_FALLBACK_LIBRARY_PATH="$WINE_DIR/lib:${DYLD_FALLBACK_LIBRARY_PATH:-}"
-    if [ -f "$WINE_DIR/lib/MoltenVK_icd.json" ]; then
-        export VK_DRIVER_FILES="$WINE_DIR/lib/MoltenVK_icd.json"
-        export VK_ICD_FILENAMES="$VK_DRIVER_FILES"
-    fi
+    # Vulkan (MoltenVK): eqemu_vulkan_env in eqemu.sh, called once by the CLI.
     clean_stale_winetemp
 }
 

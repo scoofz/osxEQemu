@@ -116,6 +116,11 @@ if "libMoltenVK.dylib" in closure:
     with open(src_icd) as fh:
         icd = json.load(fh)
     icd["ICD"]["library_path"] = "./libMoltenVK.dylib"
+    # Not a "portability driver" for the loader: otherwise it is hidden from every
+    # instance that doesn't opt in (VK_KHR_portability_enumeration), and Wine's 32-bit
+    # Vulkan path got VK_ERROR_INCOMPATIBLE_DRIVER (osxEQEmu, 2026-10).
+    if "is_portability_driver" in icd["ICD"]:
+        icd["ICD"]["is_portability_driver"] = False
     with open(os.path.join(lib_dir, "MoltenVK_icd.json"), "w") as fh:
         json.dump(icd, fh, indent=2)
     print(f"wrote MoltenVK_icd.json (api_version {icd['ICD'].get('api_version', '?')})")
