@@ -470,7 +470,10 @@ crash_report() {
 perf_report() {
     local wd="${1:-$WINE_DIR}" log="${2:-$OSXEQL_HOME/logs/app-launch.log}" out pid smp
     out="$HOME/Desktop/osxEQEmu-perf-$(date +%Y%m%d-%H%M%S).txt"
-    pid="$(pgrep -f 'eqgame\.exe' | head -1)"
+    # The game itself, not start.exe / explorer.exe (their command lines mention
+    # eqgame.exe too): the busiest process whose command line is eqgame.exe's.
+    pid="$(ps -axo pid=,%cpu=,command= | grep -i 'eqgame\.exe' \
+        | grep -v -i -e 'start\.exe' -e 'explorer\.exe' -e grep | sort -k2 -nr | awk 'NR==1{print $1}')"
     {
         echo "== osxEQEmu performance report $(date)"
         /usr/sbin/sysctl -n machdep.cpu.brand_string hw.ncpu hw.memsize 2>/dev/null
@@ -489,7 +492,7 @@ perf_report() {
         grep -a 'trace:fps' "$log" 2>/dev/null | tail -15 | sed 's/.*@ approx/@ approx/' || true
         echo "== client frame caps (eqclient.ini)"
         grep -a -i 'fps' "$(client_dir)/eqclient.ini" 2>/dev/null | tr -d '\r'
-        echo "== settings: renderer $(renderer_effective), msync $(eqemu_msync), vram $(eqemu_vram_mb) MB, d3dx9 $(d3dx9_mode)"
+        echo "== settings: renderer in the prefix: $(cat "$WINEPREFIX/.osxeqemu-renderer" 2>/dev/null || echo '?') (setting $(renderer_setting); runtime OpenGL: $([ -f "$wd/lib/wine/x86_64-unix/opengl32.so" ] && echo yes || echo no)), msync $(eqemu_msync), vram $(eqemu_vram_mb) MB, d3dx9 $(d3dx9_mode)"
     } > "$out" 2>&1
     if [ -n "$pid" ] && [ -x /usr/bin/sample ]; then
         smp="$(mktemp)"

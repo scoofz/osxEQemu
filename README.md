@@ -128,8 +128,18 @@ game's 2013 age suggests. What the app sets for you:
   guess for an Apple GPU can be too low and makes EQ keep swapping textures) —
   `osxeqemu vram MB|default`.
 
-What helps most in game (Alt+O → Display): a shorter **clip plane**, fewer
-**particles**, **shadows** and **water reflections** off.
+What helps most in game (Alt+O → Display): **shadows off** (the big one), a shorter
+**clip plane**, fewer **particles**, **water reflections** off.
+
+Measured on an M3 Max (first test, Oct. 2026): 22–42 fps in game with the client using
+~1.6 cores: on this path the limit is the **CPU cost of each draw call** (Direct3D 9 →
+wined3d → Rosetta → OpenGL → Metal), not the GPU. Shadows multiply draw calls, which
+is why they hurt here and not in EverQuest Legends (64-bit Direct3D 11 straight to Metal
+through DXMT). The first sessions in a new zone also stutter while wined3d compiles the
+client's shaders; later sessions reuse them.
+
+`osxeqemu perf` (while the game runs) reports fps, CPU, msync and a 5 s sample of the
+game — attach its Desktop file to a performance report.
 
 ## Command line
 
