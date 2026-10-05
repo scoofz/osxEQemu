@@ -454,3 +454,51 @@ crash_report() {
     echo "--- dbg.txt around the crash (hex dump lines left out)"
     grep -a -v -E '[0-9a-fA-F]{8} ([0-9a-fA-F]{2} ){8} ' "$dbg" | tail -40
 }
+
+# ---- performance report -------------------------------------------------------------
+# For "the game is slow but the Mac is idle": measured while the game runs.
+#   - CPU/memory of the game, wineserver and explorer (ps);
+#   - whether the running game really has WINEMSYNC=1, and whether the runtime
+#     even contains msync (ntdll.so / wineserver strings);
+#   - frames per second from wined3d's own counter (the app runs Wine with +fps:
+#     one "@ approx N fps" line per second in app-launch.log);
+#   - the client's own frame caps (eqclient.ini *FPS*);
+#   - 5 s of macOS `sample` of the game: where its threads actually wait/spend time
+#     (the "Sort by top of stack" summary).
+# $1 = runtime dir (default $WINE_DIR), $2 = Wine log (default app-launch.log).
+# Writes ~/Desktop/osxEQEmu-perf-<date>.txt (full sample included) and prints it.
+perf_report() {
+    local wd="${1:-$WINE_DIR}" log="${2:-$OSXEQL_HOME/logs/app-launch.log}" out pid smp
+    out="$HOME/Desktop/osxEQEmu-perf-$(date +%Y%m%d-%H%M%S).txt"
+    pid="$(pgrep -f 'eqgame\.exe' | head -1)"
+    {
+        echo "== osxEQEmu performance report $(date)"
+        /usr/sbin/sysctl -n machdep.cpu.brand_string hw.ncpu hw.memsize 2>/dev/null
+        echo "== processes (pid %cpu rss command)"
+        ps -axo pid,%cpu,rss,command | grep -iE 'eqgame|wineserver|explorer\.exe' | grep -v grep | cut -c1-160
+        echo "== msync"
+        echo "runtime: $wd"
+        echo "ntdll.so mentions msync: $(grep -a -c -i msync "$wd/lib/wine/x86_64-unix/ntdll.so" 2>/dev/null || echo 0)"
+        echo "wineserver mentions msync: $(grep -a -c -i msync "$wd/bin/wineserver" 2>/dev/null || echo 0)"
+        if [ -n "$pid" ]; then
+            echo "game pid $pid environment: $(ps -E -p "$pid" -o command= 2>/dev/null | tr ' ' '\n' | grep -E '^WINE(MSYNC|ESYNC|DEBUG)=' | tr '\n' ' ')"
+        else
+            echo "game not running — start it, go in game, then run this again"
+        fi
+        echo "== frames per second (wined3d, last 15 s)"
+        grep -a 'trace:fps' "$log" 2>/dev/null | tail -15 | sed 's/.*@ approx/@ approx/' || true
+        echo "== client frame caps (eqclient.ini)"
+        grep -a -i 'fps' "$(client_dir)/eqclient.ini" 2>/dev/null | tr -d '\r'
+        echo "== settings: renderer $(renderer_effective), msync $(eqemu_msync), vram $(eqemu_vram_mb) MB, d3dx9 $(d3dx9_mode)"
+    } > "$out" 2>&1
+    if [ -n "$pid" ] && [ -x /usr/bin/sample ]; then
+        smp="$(mktemp)"
+        echo "== where the game's time goes (5 s sample)" >> "$out"
+        /usr/bin/sample "$pid" 5 -mayDie -file "$smp" >/dev/null 2>&1
+        sed -n '/Sort by top of stack/,/^$/p' "$smp" | head -40 >> "$out"
+        echo "== full sample" >> "$out"
+        cat "$smp" >> "$out"; rm -f "$smp"
+    fi
+    sed '/^== full sample/q' "$out"
+    echo "(full report: $out)"
+}

@@ -35,7 +35,7 @@ export WINEDLLPATH="$WINE_DIR/lib/wine/x86_64-windows:$WINE_DIR/lib/wine/i386-wi
 # +loaddll: one line per dll with its load address, so a crash address in the
 # client's dbg.txt can be pinned to a dll (crash_report in eqemu.sh). A few hundred
 # lines per launch.
-export WINEDEBUG="fixme-all,+loaddll"
+export WINEDEBUG="fixme-all,+loaddll,+fps"   # +fps: wined3d logs fps once a second (osxeqemu perf)
 export WINEDLLOVERRIDES="mscoree,mshtml="
 export DYLD_FALLBACK_LIBRARY_PATH="$WINE_DIR/lib:${DYLD_FALLBACK_LIBRARY_PATH:-}"
 # Vulkan: the bundled MoltenVK via the bundled ICD json (wined3d's Vulkan renderer).

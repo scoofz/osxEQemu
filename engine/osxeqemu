@@ -40,6 +40,10 @@ osxeqemu — the EverQuest RoF2 client on EQEmu servers, on macOS (Wine, open so
   osxeqemu crash [LOG]         The client's last crash: which dll it happened in
                                (from Logs/dbg.txt + the launch's Wine log; default:
                                the app's app-launch.log)
+  osxeqemu perf [LOG]          While the game runs: fps, CPU of game/wineserver,
+                               msync really active?, client fps caps, and a 5 s
+                               macOS sample of where the game waits. Saved on the
+                               Desktop (osxEQEmu-perf-*.txt).
   osxeqemu status              Show what's set up
   osxeqemu doctor              Sanity-check the runtime
 
@@ -146,7 +150,7 @@ cmd_play() {
     caffeinate -dimsu -w $$ &
     echo "$launchlog" > "$LOGDIR/.last-cli-launch"
     d="$(d3dx9_overrides)"; [ -n "$d" ] && export WINEDLLOVERRIDES="${WINEDLLOVERRIDES:-mscoree,mshtml=};$d"
-    WINEDEBUG="fixme-all,+loaddll" exec "$WINE" explorer "/desktop=$EQEMU_DESKTOP,${OSXEQL_W}x${OSXEQL_H}" "$EQEMU_EXE_WIN" patchme >>"$launchlog" 2>&1
+    WINEDEBUG="fixme-all,+loaddll,+fps" exec "$WINE" explorer "/desktop=$EQEMU_DESKTOP,${OSXEQL_W}x${OSXEQL_H}" "$EQEMU_EXE_WIN" patchme >>"$launchlog" 2>&1
 }
 
 cmd_status() {
@@ -204,6 +208,10 @@ case "${1:-}" in
             *)       die "usage: osxeqemu logs [archive [MB]]" ;;
         esac ;;
     crash)         shift; crash_report "$@" ;;
+    perf)          shift
+                   # the app's runtime when the CLI has none of its own
+                   wd="$WINE_DIR"; [ -x "$wd/bin/wine" ] || wd=/Applications/osxEQEmu.app/Contents/Resources/Wine
+                   perf_report "$wd" "${1:-}" ;;
     status)        cmd_status ;;
     doctor)        cmd_doctor ;;
     ""|-h|--help)  usage ;;
