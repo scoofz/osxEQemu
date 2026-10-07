@@ -120,6 +120,15 @@ the `vulkan-icd` and `winedebug` files, and `osxeqemu crash` / `perf` came out o
 tests and stay useful. What could change the picture later: a native arm64 Wine (no
 Rosetta), or a Mac Vulkan driver that emulates geometry shaders.
 
+### D3D9 analysis (for developers)
+
+To scope a faster Direct3D 9 → Metal layer to what RoF2 really uses, osxEQEmu ships a
+pass-through Direct3D 9 "spy" ([`tools/d3d9trace`](tools/d3d9trace/README.md)): ⌥ menu
+→ **D3D9 analysis: ON**, play through the scenes that matter, quit. The report
+(`logs/d3d9-trace/<date>/summary.txt`, also in the diagnostics zip; `osxeqemu d3d9trace
+report`) lists what the game needs — fixed-function vs shaders, formats, states, lock
+patterns, every shader — and which Direct3D 9 methods it never calls.
+
 ### D3DX9: Microsoft's, not Wine's
 
 RoF2 compiles its shaders — animated character models, fog, water — through

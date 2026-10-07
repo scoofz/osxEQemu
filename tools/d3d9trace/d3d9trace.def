@@ -1,0 +1,19 @@
+LIBRARY d3d9.dll
+EXPORTS
+  Direct3DCreate9=trace_Direct3DCreate9@4
+  Direct3DCreate9Ex=trace_Direct3DCreate9Ex@8
+  Direct3DShaderValidatorCreate9=fwd_Direct3DShaderValidatorCreate9
+  PSGPError=fwd_PSGPError
+  PSGPSampleTexture=fwd_PSGPSampleTexture
+  D3DPERF_BeginEvent=fwd_D3DPERF_BeginEvent
+  D3DPERF_EndEvent=fwd_D3DPERF_EndEvent
+  D3DPERF_GetStatus=fwd_D3DPERF_GetStatus
+  D3DPERF_QueryRepeatFrame=fwd_D3DPERF_QueryRepeatFrame
+  D3DPERF_SetMarker=fwd_D3DPERF_SetMarker
+  D3DPERF_SetOptions=fwd_D3DPERF_SetOptions
+  D3DPERF_SetRegion=fwd_D3DPERF_SetRegion
+  DebugSetLevel=fwd_DebugSetLevel
+  DebugSetMute=fwd_DebugSetMute
+  Direct3DCreate9On12=fwd_Direct3DCreate9On12
+  Direct3DCreate9On12Ex=fwd_Direct3DCreate9On12Ex
+  Direct3D9EnableMaximizedWindowedModeShim=fwd_Direct3D9EnableMaximizedWindowedModeShim

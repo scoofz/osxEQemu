@@ -59,6 +59,7 @@ if [ ! -x "$WINE" ] || [ ! -f "$RES/eqemu.sh" ]; then
     exit 1
 fi
 . "$RES/eqemu.sh"
+EQEMU_TRACE_DLL="$RES/d3d9trace.dll"   # D3D9 analysis spy (tools/d3d9trace)
 eqemu_sync_env   # before ANY wine command: wineserver and game must agree on msync
 eqemu_vulkan_env # Vulkan loader -> bundled MoltenVK (see eqemu.sh)
 
@@ -344,6 +345,7 @@ collect_diagnostics(){
         cp "$dir/eqhost.txt" "$tmp/" 2>/dev/null
         cp "$dir/eqclient.ini" "$tmp/" 2>/dev/null
         cp "$dir/Logs/dbg.txt" "$tmp/dbg.txt" 2>/dev/null
+        _t="$(d3d9trace_latest)"; [ -n "$_t" ] && cp -R "$_t" "$tmp/d3d9-trace" 2>/dev/null
         crash_report > "$tmp/crash.txt" 2>&1
     fi
     if /usr/bin/ditto -c -k --keepParent "$tmp" "$out"; then
@@ -403,6 +405,7 @@ settings_menu(){
             "Login server: $(login_server)"
             "Client: ${dir:-none} — change…"
             "$(renderer_menu_label)"
+            "D3D9 analysis for developers (report in the logs folder): $(_onoff "$(d3d9trace_mode)")"
             "Fast sync (msync — try OFF if the game misbehaves): $(_onoff "$(eqemu_msync)")"
             "DirectX 9 helpers (D3DX9): $(d3dx9_menu_label)"
             "Archive game logs (largest: ${largest:-0} MB)"
@@ -419,6 +422,7 @@ settings_menu(){
             "Login server"*) choose_login ;;
             "Client:"*)      choose_client ;;
             Graphics*)       renderer_cycle ;;
+            "D3D9 analysis"*) if [ "$(d3d9trace_mode)" = on ]; then echo off > "$EQEMU_TRACE_FILE"; else echo on > "$EQEMU_TRACE_FILE"; fi ;;
             "Fast sync"*)    if [ "$(eqemu_msync)" = on ]; then echo off > "$EQEMU_MSYNC_FILE"; else echo on > "$EQEMU_MSYNC_FILE"; fi
                              eqemu_sync_env ;;
             "DirectX 9 helpers"*) d3dx9_menu_choose ;;

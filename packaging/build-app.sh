@@ -51,6 +51,13 @@ install -m 0755 "$REPO/app/launcher.sh" "$OUT/Contents/MacOS/osxEQEmu"
 cp "$REPO/app/Info.plist"        "$OUT/Contents/Info.plist"
 install -m 0644 "$REPO/engine/eqemu.sh" "$OUT/Contents/Resources/eqemu.sh"   # client/login/renderer logic (shared with the CLI)
 cp "$REPO/assets/icon/AppIcon.icns" "$OUT/Contents/Resources/AppIcon.icns"
+# D3D9 analysis spy (tools/d3d9trace): rebuilt when mingw-w64 is installed, else the
+# prebuilt dll from the repo.
+if command -v i686-w64-mingw32-g++ >/dev/null 2>&1; then
+    "$REPO/tools/d3d9trace/build.sh" "$OUT/Contents/Resources/d3d9trace.dll" >/dev/null && echo "d3d9trace.dll: rebuilt with mingw"
+else
+    cp "$REPO/tools/d3d9trace/d3d9trace.dll" "$OUT/Contents/Resources/d3d9trace.dll" && echo "d3d9trace.dll: prebuilt (brew install mingw-w64 to rebuild)"
+fi
 echo "compiling setup-window helper…"
 xcrun swiftc -O -o "$OUT/Contents/Resources/osxeql-progress" "$REPO/app/progress-helper.swift" -framework AppKit
 echo "copying Wine runtime ($(du -sh "$WINE_SRC" | cut -f1)) — a moment…"

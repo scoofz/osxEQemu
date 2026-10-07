@@ -246,21 +246,56 @@ dxvk_install() {
     echo "dxvk: installed $(dxvk_version) (32-bit d3d9.dll, sha256 $(cut -d' ' -f2 "$DXVK_INFO"))" >>"$log"
 }
 
-# Put DXVK's d3d9.dll into (or take it out of) the client folder for this launch,
-# and export what it needs. $1 = client dir, $2 = log.
-dxvk_sync_client() {
-    local dir="$1" log="${2:-/dev/null}" m="$1/.osxeqemu-dxvk"
+# ---- D3D9 analysis (d3d9trace): what RoF2 asks of Direct3D 9 ------------------------
+# tools/d3d9trace builds a pass-through d3d9.dll that forwards everything to Wine's
+# real d3d9 and records the game's Direct3D 9 usage (calls per frame, draws, fixed
+# function vs shaders, formats, states, locks, every shader dumped) — the work list
+# for a future Direct3D 9 -> Metal layer. No measurable slowdown in tests; the game
+# renders exactly as without it. One folder per session:
+# logs/d3d9-trace/<date>/ (summary.txt, timeline.txt, events.txt, shaders/).
+# Setting file d3d9-trace: on | off (default off). The dll's path comes from the
+# caller: EQEMU_TRACE_DLL (the app: Resources/d3d9trace.dll; CLI: tools/d3d9trace/).
+EQEMU_TRACE_FILE="$OSXEQL_HOME/d3d9-trace"
+EQEMU_TRACE_ROOT="$OSXEQL_HOME/logs/d3d9-trace"
+d3d9trace_mode() {
+    local v=""
+    [ -f "$EQEMU_TRACE_FILE" ] && v="$(tr -cd 'a-z' < "$EQEMU_TRACE_FILE")"
+    [ "$v" = on ] && echo on || echo off
+}
+d3d9trace_latest() { ls -1d "$EQEMU_TRACE_ROOT"/*/ 2>/dev/null | tail -1 | sed 's|/$||'; }
+
+# ---- the client folder's d3d9.dll slot ------------------------------------------------
+# At most one of our dlls sits next to eqgame.exe as d3d9.dll (a native dll there loads
+# first, with d3d9=n,b): DXVK when it is the renderer, else the d3d9trace spy when
+# analysis is on, else none. Marked by .osxeqemu-d3d9 holding its SHA-256, and removed
+# again only if it is still exactly ours. A client shipping its own d3d9.dll is never
+# touched. $1 = client dir, $2 = log.
+d3d9_slot_sync() {
+    local dir="$1" log="${2:-/dev/null}" m="$1/.osxeqemu-d3d9" want="" what="" tdir
+    [ -f "$1/.osxeqemu-dxvk" ] && mv -f "$1/.osxeqemu-dxvk" "$m"        # 0.2.x marker
     if [ "$(renderer_effective)" = dxvk ]; then
+        want="$DXVK_DLL"; what="dxvk"
+    elif [ "$(d3d9trace_mode)" = on ] && [ -s "${EQEMU_TRACE_DLL:-}" ]; then
+        want="$EQEMU_TRACE_DLL"; what="d3d9trace"
+    fi
+    if [ -n "$want" ]; then
         if [ -f "$dir/d3d9.dll" ] && [ ! -f "$m" ]; then
-            echo "dxvk: the client has its own d3d9.dll — not replaced, DXVK not used" >>"$log"; return 0
+            echo "$what: the client has its own d3d9.dll — not replaced, $what not used" >>"$log"; return 0
         fi
-        cp -f "$DXVK_DLL" "$dir/d3d9.dll" && sha256_of "$dir/d3d9.dll" > "$m" || return 0
+        cp -f "$want" "$dir/d3d9.dll" && sha256_of "$dir/d3d9.dll" > "$m" || return 0
         export WINEDLLOVERRIDES="${WINEDLLOVERRIDES:-mscoree,mshtml=};d3d9=n,b"
-        export DXVK_HUD="${DXVK_HUD:-fps}" DXVK_LOG_PATH="$OSXEQL_HOME/logs" DXVK_LOG_LEVEL="${DXVK_LOG_LEVEL:-info}"
-        echo "dxvk: $(dxvk_version) in the client folder (d3d9=n,b, HUD $DXVK_HUD)" >>"$log"
+        if [ "$what" = dxvk ]; then
+            export DXVK_HUD="${DXVK_HUD:-fps}" DXVK_LOG_PATH="$OSXEQL_HOME/logs" DXVK_LOG_LEVEL="${DXVK_LOG_LEVEL:-info}"
+            echo "dxvk: $(dxvk_version) in the client folder (d3d9=n,b, HUD $DXVK_HUD)" >>"$log"
+        else
+            tdir="$EQEMU_TRACE_ROOT/$(date +%Y%m%d-%H%M%S)"
+            mkdir -p "$tdir"
+            export OSXEQEMU_TRACE_DIR="$(win_path "$tdir")"
+            echo "d3d9trace: analysis on, report in $tdir" >>"$log"
+        fi
     elif [ -f "$m" ]; then
         if [ -f "$dir/d3d9.dll" ] && [ "$(sha256_of "$dir/d3d9.dll")" = "$(cat "$m")" ]; then
-            rm -f "$dir/d3d9.dll"; echo "dxvk: removed from the client folder" >>"$log"
+            rm -f "$dir/d3d9.dll"; echo "d3d9 slot: our d3d9.dll removed from the client folder" >>"$log"
         fi
         rm -f "$m"
     fi
@@ -515,7 +550,7 @@ eqemu_prepare_launch() {
     eqclient_pin "$dir" "$OSXEQL_W" "$OSXEQL_H" "$OSXEQL_FULLDISPLAY"
     renderer_apply "$log"
     vram_apply "$log"
-    dxvk_sync_client "$dir" "$log"
+    d3d9_slot_sync "$dir" "$log"
     echo "msync: $(eqemu_msync) (WINEMSYNC=${WINEMSYNC:-unset})  VideoMemorySize: $(eqemu_vram_mb) MB" >>"$log"
     EQEMU_EXE_WIN="$(win_path "$dir")\\eqgame.exe"
     echo "client: $dir ($(client_kind "$dir"))  login: $(login_server)  window: ${OSXEQL_W}x${OSXEQL_H}  d3dx9: $(d3dx9_mode)$(d3dx9_installed && echo ' (Microsoft dlls installed)')" >>"$log"
